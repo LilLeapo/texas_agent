@@ -10,6 +10,7 @@ from __future__ import annotations
 import time
 
 import cv2
+import numpy as np
 
 from ..orchestrator import WatchEvent
 from .calib import TableCalibration
@@ -25,27 +26,52 @@ class LiveVision:
         self.zones = ZoneChecker(zones_yaml)
         self.gate = StabilityGate()
         self.matcher = CardMatcher(template_dir)
-        self.top = cv2.VideoCapture(top_cam_index)
-        self.card_cam = cv2.VideoCapture(card_cam_index) if card_cam_index is not None else None
+        self.top = self._open(top_cam_index)
+        self.card_cam = self._open(card_cam_index) if card_cam_index is not None else None
         self._baseline: dict[str, str] = {}
+        self.last_frame = None  # 主循环最近一帧, 供网页荷官屏复用(勿并发读相机)
 
-    def start(self) -> None:
-        """开场标定 + 记录各区域基线三态。"""
-        ok, frame = self.top.read()
-        if not ok or not self.calib.calibrate(frame):
-            raise RuntimeError("标定失败: 检查 ArUco 是否全部可见")
-        warped = self.calib.warp(frame)
-        self._baseline = {z: self.zones.tri_state(warped, z) for z in self.zones.zones}
+    @staticmethod
+    def _open(index: int):
+        cap = cv2.VideoCapture(index)
+        cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+        return cap
+
+    def close(self) -> None:
+        """释放相机。传帧中被强杀会卡死相机固件, 退出前务必走这里。"""
+        self.top.release()
+        if self.card_cam is not None:
+            self.card_cam.release()
+
+    def start(self, timeout: float = 8.0) -> None:
+        """开场标定 + 记录各区域基线三态。多帧重试(首帧曝光未稳)。"""
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            ok, frame = self.top.read()
+            if ok:
+                self.last_frame = frame
+            if ok and self.calib.calibrate(frame):
+                warped = self.calib.warp(frame)
+                self._baseline = {z: self.zones.tri_state(warped, z)
+                                  for z in self.zones.zones}
+                return
+        raise RuntimeError("标定失败: 检查 ArUco 是否全部可见")
 
     def watch(self, zones: list[str], expect: str = "appear",
               timeout: float = 20) -> WatchEvent:
         """等待期望区域出现存在性变化(none→back/face)。只在静止帧上核验。"""
+        if expect == "appear" and zones and \
+                all(self._baseline.get(z, "none") != "none" for z in zones):
+            return WatchEvent(ok=True)  # 已有牌叠着(烧牌堆): 增量不可见, 放行
         deadline = time.time() + timeout
         while time.time() < deadline:
             ok, frame = self.top.read()
             if not ok:
                 time.sleep(0.1)
                 continue
+            self.last_frame = frame
             if not self.gate.feed(frame):
                 continue  # 手在桌上晃动 → 不判定
             warped = self.calib.warp(frame)
@@ -81,8 +107,9 @@ class LiveVision:
 
     # ---- 慢循环 VLM 取图口 (VlmCardReader / DealAuditor 用, 主循环不依赖) ----
 
-    def card_image(self, zone: str):
-        """仲裁用牌面图: 优先 NCC 刚失败那帧的对齐裁图, 其次原始 ROI, 再现拍。"""
+    def card_image(self, zone: str, scale: int = 4):
+        """仲裁用牌面图: 优先 NCC 刚失败那帧的对齐裁图, 其次读牌相机,
+        最后从顶视原始帧按逆单应裁该区域(保留全部光学分辨率, 不经过 1px/mm 降采样)。"""
         if self.matcher.last_aligned is not None:
             return self.matcher.last_aligned
         if self.matcher.last_input is not None:
@@ -91,9 +118,20 @@ class LiveVision:
             ok, frame = self.card_cam.read()
             return frame if ok else None
         ok, frame = self.top.read()
-        if not ok:
+        if not ok or self.calib.H is None:
             return None
-        return self.zones.crop(self.calib.warp(frame), zone)
+        x, y, w, h = self.zones.zones[zone]
+        pad = 8  # 牌可能没摆正在框中央: 裁大一圈, 交给 _align 精确抠出主牌
+        x, y, w, h = x - pad, y - pad, w + 2 * pad, h + 2 * pad
+        quad = np.float32([[x, y], [x + w, y], [x + w, y + h], [x, y + h]])
+        src = cv2.perspectiveTransform(quad.reshape(1, 4, 2).astype(np.float64),
+                                       np.linalg.inv(self.calib.H)).reshape(4, 2)
+        dst = np.float32([[0, 0], [w * scale, 0], [w * scale, h * scale], [0, h * scale]])
+        m = cv2.getPerspectiveTransform(src.astype(np.float32), dst)
+        patch = cv2.warpPerspective(self.calib._rotate(frame), m,
+                                    (w * scale, h * scale))
+        card = self.matcher._align(patch)   # 抠出最大牌形, 剔掉混入的邻牌角
+        return card if card is not None else patch
 
     def still_frame(self, timeout: float = 3.0):
         """审计用顶视静止帧: 等手离开画面; 超时给最后一帧, 拍不到给 None。"""
@@ -104,7 +142,7 @@ class LiveVision:
             if not ok:
                 time.sleep(0.05)
                 continue
-            frame = f
+            frame = self.last_frame = f
             if self.gate.feed(f):
                 return f
         return frame
