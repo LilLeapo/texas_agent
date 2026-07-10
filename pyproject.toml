@@ -1,0 +1,23 @@
+[project]
+name = "texas-agent"
+version = "0.1.0"
+description = "牌桌智脑 · 无机械臂版：全知裁判 / 导播 / 解说"
+requires-python = ">=3.11"
+dependencies = [
+    "pokerkit",
+    "eval7",
+    "websockets",
+    "pyyaml",
+    "numpy",
+]
+
+[project.optional-dependencies]
+vision = ["opencv-python"]
+dev = ["pytest"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

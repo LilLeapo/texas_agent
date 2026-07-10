@@ -1,0 +1,37 @@
+# 运行模式一键切换
+mode: god               # god(主打: 知道每一张牌) | public(降级: 只识别翻开的公共牌)
+god_source: preset      # shoe(靴口相机) | preset(预排牌序, 相机降级为核验)
+executor: human         # human(提词荷官) | robot(机械臂版, 热切换)
+
+players: 4
+stacks: [20000, 20000, 20000, 20000]
+blinds: [50, 100]
+
+deck_order: config/deck_order.txt   # god_source: preset 时使用
+charts_dir: charts                  # M7 GTO 基线
+zones: config/zones.yaml
+
+prompter:
+  tts: true
+  expect_timeout_s: 20    # 期望窗口, 超时轻声重提一次, 再超时升级 alert
+
+cameras:
+  top_index: 0            # 顶视 Ace Pro 2
+  card_index: 1           # 读牌位 (靴口 / 公共牌特写)
+  template_dir: templates
+
+hub:
+  pub_port: 8765
+  sub_port: 8766
+
+commentary:
+  enabled: true
+  tts: false              # LLM 解说走下方 llm: 段, 3.5s 超时自动降级模板
+
+# 慢循环 LLM (局域网 Spark 上的 Ollama, OpenAI 兼容)。base_url 留空 = 全部禁用,
+# 解说/认牌仲裁/发牌审计三处自动降级 —— 拔掉 Spark 整场无感。IP 现场填, 勿提交。
+llm:
+  base_url: ""            # 如 http://<SPARK_IP>:11434/v1, 现场填
+  model: qwen2.5vl:32b    # 视觉任务(认牌仲裁/发牌审计)
+  text_model: qwen2.5vl:7b  # 纯文本解说走小模型更快; 删掉本行则与 model 共用
+  timeout_s: 8            # 客户端硬上限; 解说 3.5s 截断在 Commentator 里另算

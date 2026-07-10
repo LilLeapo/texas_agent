@@ -1,0 +1,12 @@
+# 预排牌序 (god_source: preset) —— 4 人局剧情牌: 转牌反超
+# 发牌次序: P1a P2a P3a P4a P1b P2b P3b P4b | 烧 翻×3 | 烧 转 | 烧 河 | 其余
+# 剧情: P1(SB) AhKh 坚果同花听牌 / P2(BB) JcJs 翻牌中三条 / P3 99 / P4 A5s
+#       翻牌 Jh8h3c P2 大幅领先 → 转牌 Qh P1 同花反超 → 河牌 6s 空白, P1 胜
+Ah Jc 9c As
+Kh Js 9d 5s
+4d Jh 8h 3c
+Tc Qh
+2c 6s
+2s 2h 2d 3s 3h 3d 4s 4h 4c 5h 5d 5c 6h
+6d 6c 7s 7h 7d 7c 8s 8d 8c 9s 9h Ts Th
+Td Jd Qs Qd Qc Ks Kd Kc Ad Ac
