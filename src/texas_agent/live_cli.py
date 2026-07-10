@@ -39,6 +39,7 @@ def main() -> None:
     ap.add_argument("--ws", action="store_true", help="转发消息到 ws hub (前端/远端TTS)")
     ap.add_argument("--web-port", type=int, default=8080,
                     help="荷官网页屏端口(大字提词+俯视图), 0 关闭")
+    ap.add_argument("--script", help="动作脚本(同 engine_cli), 免键盘: 'c c c k / k k k k'")
     args = ap.parse_args()
     if not args.deck and not args.public:
         sys.exit("选一个: --deck 预排牌序(主路) 或 --public 公开模式")
@@ -84,8 +85,10 @@ def main() -> None:
     engine = Engine(bus, n_players=cfg.get("players", 4), stacks=stacks,
                     blinds=tuple(cfg.get("blinds", [50, 100])),
                     mode="preset" if args.deck else "public")
+    inputs = (ScriptedInputs(parse_action_script(args.script)) if args.script
+              else KeyboardInputs())
     orch = Orchestrator(
-        bus, engine, vision=vision, god=god, inputs=KeyboardInputs(),
+        bus, engine, vision=vision, god=god, inputs=inputs,
         ops=ConsoleOps(),
         prompter=Prompter(bus, tts=cfg.get("prompter", {}).get("tts", False)),
         charts=GtoCharts(cfg.get("charts_dir", "charts")),
