@@ -36,6 +36,21 @@ class ManualGod:
                 print("  ✗ 无效牌面")
 
 
+def parse_action_script(script: str) -> list[tuple[str, int | None]]:
+    """'c c c k / k r 300 c' → [(call,None),...]; '/' 是分隔注释。"""
+    toks = [t for t in script.split() if t != "/"]
+    acts: list[tuple[str, int | None]] = []
+    i = 0
+    while i < len(toks):
+        if toks[i] == "r":
+            acts.append(("raise", int(toks[i + 1])))
+            i += 2
+        else:
+            acts.append(({"c": "call", "k": "check", "f": "fold"}[toks[i]], None))
+            i += 1
+    return acts
+
+
 def render(msg: dict) -> None:
     t = msg["type"]
     if t == "game_event":
@@ -104,16 +119,7 @@ def main() -> None:
 
     inputs: object
     if args.script:
-        toks = [t for t in args.script.split() if t != "/"]
-        acts, i = [], 0
-        while i < len(toks):
-            if toks[i] == "r":
-                acts.append(("raise", int(toks[i + 1])))
-                i += 2
-            else:
-                acts.append(({"c": "call", "k": "check", "f": "fold"}[toks[i]], None))
-                i += 1
-        inputs = ScriptedInputs(acts)
+        inputs = ScriptedInputs(parse_action_script(args.script))
     else:
         inputs = KeyboardInputs()
 
