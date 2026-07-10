@@ -77,6 +77,18 @@ def test_reader_color_crosscheck():
     assert reader2.read_card("C4") == "As"              # 墨量不足: 判不了, 不否决
 
 
+def test_reader_two_step_fallback():
+    """单发不确定 → 拆点数+花色两问 (实测人头牌单发常保守)。"""
+    client = FakeClient(["不确定", "J", "黑桃"])
+    reader = VlmCardReader(client, image_source=lambda z: object())
+    assert reader.read_card("C2") == "Js"
+    assert len(client.prompts) == 3
+    # 两步里任何一步不确定 → 整体不确定
+    reader2 = VlmCardReader(FakeClient(["不确定", "J", "不确定"]),
+                            image_source=lambda z: object())
+    assert reader2.read_card("C2") == "uncertain"
+
+
 # ---------- 兜底链: vision → VLM → ops ----------
 
 PUBLIC_SCRIPT = [("call", None), ("check", None)] + [("check", None)] * 6

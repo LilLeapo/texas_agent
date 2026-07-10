@@ -19,8 +19,16 @@ CARD_PROMPT = ("这是一张扑克牌的牌面照片。它是 52 张扑克牌中
                "只回答牌面代码, 点数大写+花色小写, 如 'Qh'、'As'、'Td'。"
                "看不清或不确定就只回答'不确定', 禁止猜测。")
 
+RANK_PROMPT = ("这张扑克牌左上角的点数是什么? 只回答一个: "
+               "A、2、3、4、5、6、7、8、9、10、J、Q、K。看不清就只回答'不确定'。")
+SUIT_PROMPT = ("这张扑克牌的花色是什么? 只回答一个: 黑桃、红桃、方块、梅花。"
+               "看不清就只回答'不确定'。")
+
 _CARD_RE = re.compile(r"(10|[2-9TJQKAtjqka])\s*([shdcSHDC])")
 _UNCERTAIN_RE = re.compile(r"不确定|uncertain|unsure|unclear", re.IGNORECASE)
+_RANK_RE = re.compile(r"10|[2-9]|[AJQKTajqkt]")
+_SUITS = {"黑桃": "s", "红桃": "h", "方块": "d", "梅花": "c",
+          "spade": "s", "heart": "h", "diamond": "d", "club": "c"}
 
 
 def parse_card_reply(text: str | None) -> str | None:
@@ -56,6 +64,8 @@ class VlmCardReader:
                                     timeout_s=self.timeout_s)
             card = parse_card_reply(reply)
             if card is None:
+                card = self._two_step(img)  # 人头牌单发常保守: 拆成点数+花色两问
+            if card is None:
                 return UNCERTAIN
             if _color_consistent(img, card[1]) is False:
                 return UNCERTAIN  # VLM 报的花色颜色与像素红黑矛盾 → 不采信
@@ -63,16 +73,39 @@ class VlmCardReader:
         except Exception:
             return UNCERTAIN
 
+    def _two_step(self, img) -> str | None:
+        rank_reply = self.client.ask(RANK_PROMPT, image_bgr=img,
+                                     timeout_s=self.timeout_s) or ""
+        if _UNCERTAIN_RE.search(rank_reply):
+            return None
+        m = _RANK_RE.search(rank_reply)
+        if m is None:
+            return None
+        suit_reply = self.client.ask(SUIT_PROMPT, image_bgr=img,
+                                     timeout_s=self.timeout_s) or ""
+        if _UNCERTAIN_RE.search(suit_reply):
+            return None
+        suit = next((v for k, v in _SUITS.items() if k in suit_reply.lower()), None)
+        if suit is None:
+            return None
+        try:
+            return C.normalize(m.group(0).replace("10", "T").upper() + suit)
+        except ValueError:
+            return None
+
 
 def _color_consistent(image_bgr, suit: str):
-    """像素级红/黑判色 vs VLM 花色的交叉核验(实测抓到过黑桃认成红桃)。
+    """角标区像素红/黑判色 vs VLM 花色的交叉核验(实测抓到过黑桃认成红桃)。
 
+    只看左上角标(点数+花色符号处): 人头牌画像大片红黄, 整张判色会误杀黑花色。
     True=一致, False=矛盾, None=判不了(墨量太少/无 cv2, 不否决)。
     """
     try:
         import cv2
         import numpy as np
-        hsv = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2HSV)
+        h, w = image_bgr.shape[:2]
+        corner = image_bgr[: int(h * 0.30), : int(w * 0.25)]
+        hsv = cv2.cvtColor(corner, cv2.COLOR_BGR2HSV)
         red = int(np.sum(cv2.inRange(hsv, np.array([0, 70, 60]), np.array([10, 255, 255])) |
                          cv2.inRange(hsv, np.array([170, 70, 60]), np.array([180, 255, 255]))))
         dark = int(np.sum(cv2.inRange(hsv, np.array([0, 0, 0]), np.array([180, 255, 90]))))
