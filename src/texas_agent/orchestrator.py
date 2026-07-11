@@ -156,7 +156,7 @@ class Orchestrator:
     def __init__(self, bus, engine: Engine, vision=None, god=None, inputs=None,
                  ops=None, prompter: Prompter | None = None,
                  charts: GtoCharts | None = None, expect_timeout: float = 20,
-                 vlm=None):
+                 vlm=None, arm=None):
         self.bus = bus
         self.engine = engine
         self.vision = vision or MockVision()
@@ -167,6 +167,7 @@ class Orchestrator:
         self.charts = charts or GtoCharts()
         self.expect_timeout = expect_timeout
         self.vlm = vlm  # 认牌仲裁员(VlmCardReader), 可缺席; 兜底链居中, 死了跳过
+        self.arm = arm  # ArmClient: 有臂则发牌动作由臂执行, 失败自动落回人肉提词
 
     def _trace(self, text: str):
         self.bus.emit({"type": "agent_trace", "text": text})
@@ -188,8 +189,16 @@ class Orchestrator:
     # ---- DEAL: 提词 → 视觉核验 → 定牌面 → 录入 ----
 
     def _deal(self, need: Need):
+        if self.arm is not None and hasattr(self.arm, "on_need"):
+            self.arm.on_need(need)   # 宏观臂: 阶段首卡时提交整段轨迹
         # 先取牌面: 预排立即返回; 靴口模式在此完成"亮牌→VLM 认牌"交互(烧牌不亮)
         card = self.god.next_card(kind=need.subkind)
+        if self.arm is not None and self.arm.alive:
+            ok = self.arm.deal_to(need.zones[0],
+                                  face=need.face or "down")
+            if not ok:
+                self.bus.emit({"type": "alert",
+                               "text": f"机械臂执行失败, 请荷官接管: {need.prompt_text()}"})
         self._trace(f"提示荷官: {need.prompt_text()}; 等待 {'/'.join(need.zones)}")
         self.prompter.prompt(need.prompt_text())
         retried = False

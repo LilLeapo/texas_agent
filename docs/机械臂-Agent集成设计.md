@@ -46,21 +46,20 @@ Need(DEAL hole P1a)
 | 结算后 | `arm.sweep()` 收牌(可选) → 基线重置 | 全区 none | 网页"重设基线" |
 | 任意时刻 | — | — | 网页 🔁 重开本手 → arm.home() |
 
-## 4. 与机械臂组的接口契约 (消息式, 走现有 ws hub)
+## 4. 与机械臂组的接口契约 (HTTP, 2026-07-11 定稿)
 
-机械臂侧只需实现一个订阅者: 收 `arm_command`, 做完回 `arm_ack`。Agent 侧超时/失败自动降级人肉提词
-(提词器本来就在——**机械臂现场罢工, 荷官顶上, 演示不死**, 与慢循环同一哲学)。
+**臂控电脑(局域网)开 HTTP server**, 包一层壳暴露既有点位控制; Spark 侧 `HttpArm` 客户端调用。
+契约与骨架见 `arm_side/README.md` + `arm_side/arm_server_skeleton.py`:
 
-```json
-{"type":"arm_command","id":17,"action":"pick_from_deck"}
-{"type":"arm_command","id":18,"action":"present_to_camera"}
-{"type":"arm_command","id":19,"action":"deal_to","zone":"P1a","face":"down"}
-{"type":"arm_ack","id":19,"ok":true}          // ok:false 带 reason, Agent 决定重试/降级
+```
+GET  /health → {"ok": true}
+POST /arm {"action":"deal_to","zone":"P1a","face":"down"} → 阻塞执行 → {"ok":true|false,"reason":...}
 ```
 
 - `action` ∈ `home | pick_from_deck | present_to_camera | deal_to | sweep`
-- Agent 每条命令带超时(默认 15s), 超时两次 → 切人肉提词继续本手, 发 alert。
-- schema.md 待新增这两个消息类型(三方确认后升版)。
+- Spark 侧单条超时 25s; 超时/失败两次 → 臂标记离线, 整手切人肉提词, 发 alert
+  (**机械臂现场罢工, 荷官顶上, 演示不死**, 与慢循环同一哲学)。
+- 总线 `arm_command/arm_ack` 协议保留用于 SimArm 联调(`--robot --sim-arm`)。
 
 ## 5. VLM 在闭环里的完整分工 (机械臂时代)
 

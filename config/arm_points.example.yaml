@@ -1,0 +1,24 @@
+# 语义点位 → Panthera 协调服务器点位引用 (A=第1个轨迹文件, B=第2个, 数字=文件内序号)
+# 机械臂组录制好轨迹后, 用 agent_client.py library(或 GET /api/library)对照填写,
+# 复制本文件为 config/arm_points.yaml。
+#
+# 亮牌/发牌时的灵巧手动作由灵巧手电脑按引用名执行:
+#   deck_pick → pinch(夹牌);  各牌区/MUCK → release(松牌);  camera → 不动作(Spark 认牌后回 done)
+points:
+  deck_hover: A1     # 牌堆上方
+  deck_pick: A2      # 取牌位(灵巧手在此窗口 pinch)
+  camera: A3         # 亮牌位(牌面正对读牌相机; hand_window 等 Spark 认牌)
+  MUCK: A4
+  C1: B1             # C 区: 放下后牌面朝上(由点位姿态实现)
+  C2: B2
+  C3: B3
+  C4: B4
+  C5: B5
+  P1a: B6            # P 区: 面朝下
+  P1b: B7
+  P2a: B8
+  P2b: B9
+  P3a: B10
+  P3b: B11
+  P4a: B12
+  P4b: B13

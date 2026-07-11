@@ -1,0 +1,12 @@
+{
+  "server": {
+    "host": "0.0.0.0",
+    "port": 5100,
+    "api_token": "CHANGE_THIS_TO_A_SHARED_LAN_TOKEN"
+  },
+  "robot_config": "../robot_param/Follower.yaml",
+  "trajectory_files": [
+    "../scripts/waypoints_20260711_101058.json",
+    "../scripts/waypoints_20260711_111628.json"
+  ]
+}

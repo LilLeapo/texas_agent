@@ -22,7 +22,9 @@ from .matcher import CardMatcher
 
 class ShoeGod:
     def __init__(self, bus, prompter, ops, client, card_cam=None,
-                 show_timeout_s: float = 30.0, grab=None, fast_reader=None):
+                 show_timeout_s: float = 30.0, grab=None, fast_reader=None,
+                 arm=None):
+        self.arm = arm                    # ArmClient: 有臂则取牌/亮牌由臂执行
         self.bus = bus
         self.prompter = prompter
         self.ops = ops
@@ -116,8 +118,14 @@ class ShoeGod:
     def next_card(self, kind: str | None = None) -> str | None:
         if kind == "burn":
             self.last_via = None
+            if self.arm is not None and self.arm.alive:
+                self.arm.pick_from_deck(present=False)   # 烧牌: 取不亮, 放 MUCK 由编排器指挥
             return None                   # 烧牌不亮不读
-        self.prompter.prompt("亮牌: 将下一张牌面对准读牌相机")
+        armed = False
+        if self.arm is not None and self.arm.alive:
+            armed = self.arm.pick_from_deck() and self.arm.present_to_camera()
+        if not armed:                     # 无臂/臂失败: 人肉亮牌, 演示不死
+            self.prompter.prompt("亮牌: 将下一张牌面对准读牌相机")
         fails = 0
         while True:
             card, via = self._try_read()

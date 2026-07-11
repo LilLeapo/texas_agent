@@ -36,6 +36,14 @@ def main() -> None:
     ap.add_argument("--public", action="store_true", help="公开模式: 板面靠读牌+VLM 仲裁")
     ap.add_argument("--shoe", action="store_true",
                     help="上帝模式-靴口: 每张牌先亮给读牌相机(VLM 认), 真实数据, 免预排")
+    ap.add_argument("--robot", action="store_true",
+                    help="机械臂执行(含靴口认牌); 失败自动人肉降级")
+    ap.add_argument("--arm-url", help="臂控电脑 server, 如 http://<Windows_IP>:5100")
+    ap.add_argument("--arm-token", default="", help="Panthera 服务器 api_token")
+    ap.add_argument("--arm-points", default="config/arm_points.yaml",
+                    help="语义点位映射(home/deck/camera/牌区 → A1/B3 引用)")
+    ap.add_argument("--sim-arm", action="store_true",
+                    help="挂模拟机械臂(联调用, 收指令延时回执)")
     ap.add_argument("--config", default="config/table.yaml")
     ap.add_argument("--session-tag", default="live")
     ap.add_argument("--ws", action="store_true", help="转发消息到 ws hub (前端/远端TTS)")
@@ -45,6 +53,8 @@ def main() -> None:
                     help="转播大屏端口(观众席, 现仍是内置模拟剧情), 0 关闭")
     ap.add_argument("--script", help="动作脚本(同 engine_cli), 免键盘: 'c c c k / k k k k'")
     args = ap.parse_args()
+    if args.robot:
+        args.shoe = True   # 机械臂流程内含靴口认牌
     if not args.deck and not args.public and not args.shoe:
         sys.exit("选一个: --deck 预排(剧情牌) / --shoe 靴口读牌(真实数据) / --public 公开模式")
 
@@ -102,6 +112,28 @@ def main() -> None:
     print(f"✓ 慢循环 VLM: {'接入 ' + client.base_url if client else '未配置(全模板/操作员)'}")
 
     prompter = Prompter(bus, tts=cfg.get("prompter", {}).get("tts", False))
+    arm = None
+    if args.robot:
+        if args.arm_url:
+            from .arm import PantheraArm
+            try:
+                points = yaml.safe_load(open(args.arm_points, encoding="utf-8")) or {}
+            except FileNotFoundError:
+                sys.exit(f"✗ 缺 {args.arm_points}: 按 config/arm_points.example.yaml"
+                         " 填写点位映射(problem: 语义名 → A1/B3 引用)")
+            arm = PantheraArm(args.arm_url, token=args.arm_token,
+                              points=points.get("points", points),
+                              n_players=cfg.get("players", 4), bus=bus)
+            print(f"✓ Panthera 协调服务器: {args.arm_url} "
+                  f"(探活: {'✓ 在线' if arm.health() else '✗ 不通, 将走人肉降级'})")
+        elif args.sim_arm:
+            from .arm import ArmClient, SimArm
+            arm = ArmClient(bus)
+            SimArm(bus)
+            print("✓ 模拟机械臂已挂载 (真臂用 --arm-url http://<ARM_PC_IP>:8090)")
+        else:
+            sys.exit("✗ --robot 需要 --arm-url <臂控电脑server> 或 --sim-arm(联调)")
+        print("✓ 机械臂模式: 取牌/亮牌/发牌由臂执行, 失败自动落回人肉提词")
     if args.shoe:
         if vision.card_cam is None:
             sys.exit("✗ --shoe 需要读牌相机: 在 config/table.yaml cameras.card_index 填相机号")
@@ -109,7 +141,7 @@ def main() -> None:
             sys.exit("✗ --shoe 需要 VLM 认牌: 配置 llm.base_url")
         from .vision.shoe import ShoeGod
         god = ShoeGod(bus, prompter, ops, client, card_cam=vision.card_cam,
-                      fast_reader=yolo)
+                      fast_reader=yolo, arm=arm)
         mode = "god"
         print(f"✓ 靴口模式: 亮牌认牌链 = "
               f"{'YOLO(毫秒)→' if yolo else ''}VLM→网页补录, 真实数据驱动")
@@ -120,15 +152,21 @@ def main() -> None:
     stacks = cfg.get("stacks", [20000] * cfg.get("players", 4))
     engine = Engine(bus, n_players=cfg.get("players", 4), stacks=stacks,
                     blinds=tuple(cfg.get("blinds", [50, 100])), mode=mode)
-    inputs = (ScriptedInputs(parse_action_script(args.script)) if args.script
-              else KeyboardInputs())
+    if args.script:
+        inputs = ScriptedInputs(parse_action_script(args.script))
+    elif webview is not None:
+        from .webview import WebInputs
+        inputs = WebInputs(webview)   # 网页申报动作(轮次衔接入口)
+        print("✓ 行动申报: 网页按钮 (轮到谁, 荷官屏弹谁的合法动作)")
+    else:
+        inputs = KeyboardInputs()
     orch = Orchestrator(
         bus, engine, vision=vision, god=god, inputs=inputs,
         ops=ops,
         prompter=prompter,
         charts=GtoCharts(cfg.get("charts_dir", "charts")),
         expect_timeout=cfg.get("prompter", {}).get("expect_timeout_s", 20),
-        vlm=vlm_reader)
+        vlm=vlm_reader, arm=arm)
 
     code = 0
     try:
