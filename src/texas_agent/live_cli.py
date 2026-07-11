@@ -39,6 +39,8 @@ def main() -> None:
     ap.add_argument("--ws", action="store_true", help="转发消息到 ws hub (前端/远端TTS)")
     ap.add_argument("--web-port", type=int, default=8080,
                     help="荷官网页屏端口(大字提词+俯视图), 0 关闭")
+    ap.add_argument("--broadcast-port", type=int, default=8081,
+                    help="转播大屏端口(观众席, 现仍是内置模拟剧情), 0 关闭")
     ap.add_argument("--script", help="动作脚本(同 engine_cli), 免键盘: 'c c c k / k k k k'")
     args = ap.parse_args()
     if not args.deck and not args.public:
@@ -67,6 +69,13 @@ def main() -> None:
         from .webview import WebView
         webview = WebView(bus, vision, port=args.web_port)
         print(f"✓ 荷官屏: http://<本机IP>:{args.web_port} (大字提词+俯视图, 可开朗读)")
+
+    broadcast = None
+    if args.broadcast_port:
+        from .broadcast_view import BroadcastView
+        broadcast = BroadcastView(port=args.broadcast_port)
+        print(f"✓ 转播大屏: http://<本机IP>:{args.broadcast_port} "
+              f"(观众席, 数据未接, 播的是内置模拟剧情)")
 
     client = llm.from_config(args.config)
     vlm_reader = VlmCardReader(client, vision.card_image) if client else None
@@ -105,6 +114,8 @@ def main() -> None:
         vision.close()
         if webview:
             webview.close()
+        if broadcast:
+            broadcast.close()
         bus.close()
 
 

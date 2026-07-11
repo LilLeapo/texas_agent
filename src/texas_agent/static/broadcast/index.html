@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta charset="utf-8">
+<title>S1 转播大屏 · 牌桌智脑</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600;700&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;family=Noto+Sans+SC:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;padding:0;background:#081E17;overflow:hidden;}
+  a{color:#D9A441;text-decoration:none;} a:hover{color:#F3EEE1;}
+  @keyframes breatheGold{0%,100%{box-shadow:0 0 0 2px rgba(217,164,65,0.95);}50%{box-shadow:0 0 0 6px rgba(217,164,65,0.2);}}
+  @keyframes flipIn{from{transform:rotateY(88deg);}to{transform:rotateY(0deg);}}
+  @keyframes dealIn{from{transform:translateY(-12px);opacity:0;}to{transform:none;opacity:1;}}
+  @keyframes chipToss{0%{transform:translate(var(--dx),var(--dy)) scale(0.7);opacity:1;}75%{transform:translate(0,0) scale(1);opacity:1;}100%{transform:translate(0,0) scale(1);opacity:0;}}
+  @keyframes sweepX{from{transform:translateX(-110%);}to{transform:translateX(110%);}}
+  @keyframes idlePulse{0%,100%{opacity:0.2;}50%{opacity:0.55;}}
+  @media (prefers-reduced-motion: reduce){ *{animation-duration:1ms !important;} }
+</style>
+</helmet>
+<div style="width:100vw;height:100vh;background:#081E17;display:flex;flex-direction:column;overflow:hidden;font-family:'IBM Plex Sans','Noto Sans SC',sans-serif;color:#F3EEE1;">
+  <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;min-height:0;">
+    <div data-screen-label="S1 转播大屏" style="width:1920px;height:1080px;flex:none;background:#081E17;display:flex;flex-direction:column;transform:scale({{ scale }});transform-origin:center center;position:relative;">
+
+      <!-- 顶栏 -->
+      <div style="height:64px;flex:none;display:flex;align-items:center;padding:0 32px;gap:20px;border-bottom:1px solid rgba(243,238,225,0.08);">
+        <div style="font:600 28px 'IBM Plex Sans Condensed','Noto Sans SC',sans-serif;letter-spacing:0.02em;">手牌 #42</div>
+        <div style="font-size:24px;color:rgba(243,238,225,0.7);">盲注 50 / 100</div>
+        <div style="flex:1;"></div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <sc-for list="{{ dots }}" as="dt" hint-placeholder-count="5">
+            <div style="width:12px;height:12px;border-radius:999px;background:{{ dt.bg }};opacity:{{ dt.op }};"></div>
+          </sc-for>
+          <div style="margin-left:10px;font-size:24px;color:rgba(243,238,225,0.7);min-width:110px;">{{ streetName }}</div>
+        </div>
+        <div style="flex:1;"></div>
+        <div style="display:flex;align-items:center;gap:10px;font:600 28px 'IBM Plex Sans Condensed','Noto Sans SC',sans-serif;"><span>♠</span><span>牌桌智脑</span></div>
+      </div>
+
+      <!-- 中区：左栏 / 舞台 / 右栏 -->
+      <div style="flex:1;display:flex;gap:16px;padding:16px 20px;min-height:0;">
+
+        <div style="width:318px;flex:none;display:flex;flex-direction:column;gap:12px;">
+          <sc-for list="{{ leftPlayers }}" as="p" hint-placeholder-count="3">
+            <div style="flex:1;background:#14211B;border:1px solid {{ p.borderColor }};border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden;opacity:{{ p.opacity }};filter:saturate({{ p.sat }});transition:opacity 240ms,filter 240ms,border-color 240ms;">
+              <sc-if value="{{ p.won }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;background:linear-gradient(105deg,transparent 30%,rgba(217,164,65,0.3) 50%,transparent 70%);animation:sweepX 600ms cubic-bezier(0.2,0,0,1) 1 both;pointer-events:none;"></div></sc-if>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <div style="width:10px;height:10px;border-radius:999px;background:{{ p.hue }};flex:none;"></div>
+                <div style="font:500 26px 'IBM Plex Sans','Noto Sans SC',sans-serif;white-space:nowrap;">{{ p.name }}</div>
+                <div style="font-size:15px;padding:1px 9px;border-radius:999px;border:1px solid rgba(243,238,225,0.2);color:rgba(243,238,225,0.7);flex:none;">{{ p.style }}</div>
+                <sc-if value="{{ p.est }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:rgba(243,238,225,0.45);flex:none;">预估·{{ p.nText }}</div></sc-if>
+                <div style="flex:1;"></div>
+                <sc-if value="{{ p.actionText }}" hint-placeholder-val="{{ false }}"><div style="font-size:16px;color:rgba(243,238,225,0.7);white-space:nowrap;">{{ p.actionText }}</div></sc-if>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center;margin:8px 0 6px 0;">
+                <sc-if value="{{ p.noCards }}" hint-placeholder-val="{{ true }}">
+                  <div style="width:58px;height:81px;border-radius:6px;border:1px dashed rgba(243,238,225,0.18);flex:none;"></div>
+                  <div style="width:58px;height:81px;border-radius:6px;border:1px dashed rgba(243,238,225,0.18);flex:none;"></div>
+                </sc-if>
+                <sc-for list="{{ p.cards }}" as="c" hint-placeholder-count="0">
+                  <sc-if value="{{ c.face }}">
+                    <div style="width:58px;height:81px;background:#F3EEE1;border-radius:6px;position:relative;flex:none;animation:dealIn 400ms cubic-bezier(0.2,0,0,1) backwards;">
+                      <div style="position:absolute;top:5px;left:6px;line-height:0.95;text-align:center;">
+                        <div style="font:700 21px 'IBM Plex Sans Condensed',sans-serif;color:{{ c.color }};">{{ c.rank }}</div>
+                        <div style="font-size:15px;color:{{ c.color }};">{{ c.suit }}</div>
+                      </div>
+                      <div style="position:absolute;right:5px;bottom:3px;font-size:28px;line-height:1;color:{{ c.color }};">{{ c.suit }}</div>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ c.back }}">
+                    <div style="width:58px;height:81px;border-radius:6px;flex:none;background:repeating-linear-gradient(45deg,#123227 0 6px,#0E2A20 6px 12px);border:1px solid rgba(243,238,225,0.15);animation:dealIn 400ms cubic-bezier(0.2,0,0,1) backwards;"></div>
+                  </sc-if>
+                </sc-for>
+                <div style="flex:1;"></div>
+                <div style="text-align:right;">
+                  <div style="font:600 40px 'IBM Plex Sans Condensed',sans-serif;font-variant-numeric:tabular-nums;line-height:1;color:{{ p.eqColor }};">{{ p.eqText }}</div>
+                  <div style="margin-top:6px;margin-left:auto;width:120px;height:6px;background:rgba(243,238,225,0.12);border-radius:999px;overflow:hidden;"><div style="height:100%;width:{{ p.eqW }};background:{{ p.barColor }};border-radius:999px;"></div></div>
+                </div>
+              </div>
+              <div style="display:flex;gap:14px;">
+                <div style="flex:1;">
+                  <div style="display:flex;justify-content:space-between;font-size:14px;color:rgba(243,238,225,0.45);"><span>VPIP</span><span style="color:rgba(243,238,225,0.7);font-variant-numeric:tabular-nums;">{{ p.vpip }}</span></div>
+                  <div style="margin-top:3px;height:4px;background:rgba(243,238,225,0.12);border-radius:999px;overflow:hidden;"><div style="height:100%;width:{{ p.vpipW }};background:rgba(243,238,225,0.45);"></div></div>
+                </div>
+                <div style="flex:1;">
+                  <div style="display:flex;justify-content:space-between;font-size:14px;color:rgba(243,238,225,0.45);"><span>PFR</span><span style="color:rgba(243,238,225,0.7);font-variant-numeric:tabular-nums;">{{ p.pfr }}</span></div>
+                  <div style="margin-top:3px;height:4px;background:rgba(243,238,225,0.12);border-radius:999px;overflow:hidden;"><div style="height:100%;width:{{ p.pfrW }};background:rgba(243,238,225,0.45);"></div></div>
+                </div>
+                <div style="flex:1;">
+                  <div style="display:flex;justify-content:space-between;font-size:14px;color:rgba(243,238,225,0.45);"><span>AF</span><span style="color:rgba(243,238,225,0.7);font-variant-numeric:tabular-nums;">{{ p.af }}</span></div>
+                  <div style="margin-top:3px;height:4px;background:rgba(243,238,225,0.12);border-radius:999px;overflow:hidden;"><div style="height:100%;width:{{ p.afW }};background:rgba(243,238,225,0.45);"></div></div>
+                </div>
+              </div>
+              <sc-if value="{{ behav }}" hint-placeholder-val="{{ true }}">
+                <div style="display:flex;align-items:center;gap:10px;margin-top:8px;">
+                  <span style="font-size:14px;color:rgba(243,238,225,0.45);">心率</span>
+                  <span style="font:500 20px 'IBM Plex Sans Condensed',sans-serif;font-variant-numeric:tabular-nums;">{{ p.hr }}</span>
+                  <svg width="80" height="24" style="flex:none;"><polyline points="{{ p.spark }}" fill="none" stroke="rgba(243,238,225,0.45)" stroke-width="1.5"></polyline></svg>
+                  <span style="font-size:14px;color:rgba(243,238,225,0.7);font-variant-numeric:tabular-nums;">{{ p.dhr }}</span>
+                  <div style="flex:1;"></div>
+                  <span style="font-size:13px;color:rgba(243,238,225,0.3);">相对基线</span>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+
+        <!-- 舞台 -->
+        <div style="flex:1;position:relative;min-width:0;">
+          <div style="position:absolute;inset:6px;background:radial-gradient(ellipse at 50% 42%,#134634 0%,#0E3B2E 55%,#0B2F25 100%);border:10px solid #4A342A;border-radius:340px;"></div>
+
+          <!-- 机器人徽记 -->
+          <div style="position:absolute;left:50%;top:4.5%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:6px;z-index:2;">
+            <svg width="56" height="42">
+              <circle cx="12" cy="33" r="5" fill="none" stroke="rgba(243,238,225,0.7)" stroke-width="2"></circle>
+              <line x1="14" y1="29" x2="28" y2="13" stroke="rgba(243,238,225,0.7)" stroke-width="2"></line>
+              <circle cx="29" cy="12" r="4" fill="none" stroke="rgba(243,238,225,0.7)" stroke-width="2"></circle>
+              <line x1="33" y1="13" x2="44" y2="20" stroke="rgba(243,238,225,0.7)" stroke-width="2"></line>
+              <rect x="42" y="17" width="11" height="9" rx="2" fill="none" stroke="rgba(243,238,225,0.7)" stroke-width="2"></rect>
+            </svg>
+            <div style="font-size:17px;padding:2px 14px;border-radius:999px;border:1px solid rgba(243,238,225,0.2);color:rgba(243,238,225,0.7);background:rgba(8,30,23,0.4);white-space:nowrap;">{{ robotStatus }}</div>
+          </div>
+
+          <!-- 公共牌 -->
+          <div style="position:absolute;left:50%;top:39%;transform:translate(-50%,-50%);display:flex;gap:12px;min-height:128px;z-index:2;">
+            <sc-for list="{{ boardCards }}" as="c" hint-placeholder-count="0">
+              <div style="width:92px;height:128px;background:#F3EEE1;border-radius:8px;position:relative;flex:none;animation:flipIn 400ms cubic-bezier(0.2,0,0,1) {{ c.delay }} backwards;">
+                <div style="position:absolute;top:7px;left:9px;line-height:0.95;text-align:center;">
+                  <div style="font:700 34px 'IBM Plex Sans Condensed',sans-serif;color:{{ c.color }};">{{ c.rank }}</div>
+                  <div style="font-size:22px;color:{{ c.color }};">{{ c.suit }}</div>
+                </div>
+                <div style="position:absolute;right:8px;bottom:4px;font-size:46px;line-height:1;color:{{ c.color }};">{{ c.suit }}</div>
+              </div>
+            </sc-for>
+          </div>
+
+          <!-- 待机提示 -->
+          <sc-if value="{{ isIdle }}" hint-placeholder-val="{{ true }}">
+            <div style="position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);text-align:center;color:rgba(243,238,225,0.45);font-size:24px;z-index:2;">等待开局——点击下方「播放一手」</div>
+          </sc-if>
+
+          <!-- 彩池 -->
+          <sc-if value="{{ potShow }}" hint-placeholder-val="{{ false }}">
+            <div style="position:absolute;left:50%;top:63%;transform:translate(-50%,-50%);text-align:center;z-index:2;">
+              <div style="font-size:17px;color:rgba(243,238,225,0.45);letter-spacing:0.3em;">彩池</div>
+              <div style="font:700 64px 'IBM Plex Sans Condensed',sans-serif;font-variant-numeric:tabular-nums;color:#D9A441;line-height:1.05;">{{ potText }}</div>
+              <div style="display:flex;justify-content:center;margin-top:6px;height:18px;padding-left:6px;">
+                <sc-for list="{{ potChips }}" as="ch" hint-placeholder-count="0">
+                  <div style="width:18px;height:18px;border-radius:999px;background:{{ ch.bg }};border:2px solid rgba(8,30,23,0.6);margin-left:-6px;"></div>
+                </sc-for>
+              </div>
+              <sc-if value="{{ fxA }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;left:50%;top:34%;width:20px;height:20px;margin-left:-10px;border-radius:999px;background:#D9A441;border:2px solid rgba(8,30,23,0.6);--dx:{{ fxDx }};--dy:{{ fxDy }};animation:chipToss 400ms cubic-bezier(0.34,1.2,0.64,1) both;pointer-events:none;"></div></sc-if>
+              <sc-if value="{{ fxB }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;left:50%;top:34%;width:20px;height:20px;margin-left:-10px;border-radius:999px;background:#D9A441;border:2px solid rgba(8,30,23,0.6);--dx:{{ fxDx }};--dy:{{ fxDy }};animation:chipToss 400ms cubic-bezier(0.34,1.2,0.64,1) both;pointer-events:none;"></div></sc-if>
+            </div>
+          </sc-if>
+
+          <!-- 座位锚点 -->
+          <sc-for list="{{ seats }}" as="s" hint-placeholder-count="6">
+            <sc-if value="{{ s.connShow }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;top:{{ s.connTop }};left:{{ s.connLeft }};width:{{ s.connWidth }};height:1px;background:rgba(217,164,65,0.65);z-index:1;"></div></sc-if>
+            <div style="position:absolute;left:{{ s.x }};top:{{ s.y }};transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:4px;z-index:3;opacity:{{ s.opacity }};filter:saturate({{ s.sat }});transition:opacity 240ms,filter 240ms;">
+              <div style="position:relative;width:44px;height:44px;border-radius:999px;background:{{ s.hue }};display:flex;align-items:center;justify-content:center;font:600 20px 'IBM Plex Sans','Noto Sans SC',sans-serif;color:#081E17;animation:{{ s.anim }};">{{ s.initial }}
+                <sc-if value="{{ s.dealer }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;right:-9px;top:-7px;width:20px;height:20px;border-radius:999px;background:#F3EEE1;color:#081E17;font:700 13px 'IBM Plex Sans',sans-serif;display:flex;align-items:center;justify-content:center;">D</div></sc-if>
+              </div>
+              <div style="font:500 22px 'IBM Plex Sans Condensed',sans-serif;font-variant-numeric:tabular-nums;color:rgba(243,238,225,0.9);background:rgba(8,30,23,0.55);padding:1px 10px;border-radius:999px;">{{ s.stackText }}</div>
+              <sc-if value="{{ s.betText }}" hint-placeholder-val="{{ false }}"><div style="font:600 18px 'IBM Plex Sans Condensed',sans-serif;font-variant-numeric:tabular-nums;color:#D9A441;">{{ s.betText }}</div></sc-if>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="width:318px;flex:none;display:flex;flex-direction:column;gap:12px;">
+          <sc-for list="{{ rightPlayers }}" as="p" hint-placeholder-count="3">
+            <div style="flex:1;background:#14211B;border:1px solid {{ p.borderColor }};border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden;opacity:{{ p.opacity }};filter:saturate({{ p.sat }});transition:opacity 240ms,filter 240ms,border-color 240ms;">
+              <sc-if value="{{ p.won }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;background:linear-gradient(105deg,transparent 30%,rgba(217,164,65,0.3) 50%,transparent 70%);animation:sweepX 600ms cubic-bezier(0.2,0,0,1) 1 both;pointer-events:none;"></div></sc-if>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <div style="width:10px;height:10px;border-radius:999px;background:{{ p.hue }};flex:none;"></div>
+                <div style="font:500 26px 'IBM Plex Sans','Noto Sans SC',sans-serif;white-space:nowrap;">{{ p.name }}</div>
+                <div style="font-size:15px;padding:1px 9px;border-radius:999px;border:1px solid rgba(243,238,225,0.2);color:rgba(243,238,225,0.7);flex:none;">{{ p.style }}</div>
+                <sc-if value="{{ p.est }}" hint-placeholder-val="{{ false }}"><div style="font-size:13px;color:rgba(243,238,225,0.45);flex:none;">预估·{{ p.nText }}</div></sc-if>
+                <div style="flex:1;"></div>
+                <sc-if value="{{ p.actionText }}" hint-placeholder-val="{{ false }}"><div style="font-size:16px;color:rgba(243,238,225,0.7);white-space:nowrap;">{{ p.actionText }}</div></sc-if>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center;margin:8px 0 6px 0;">
+                <sc-if value="{{ p.noCards }}" hint-placeholder-val="{{ true }}">
+                  <div style="width:58px;height:81px;border-radius:6px;border:1px dashed rgba(243,238,225,0.18);flex:none;"></div>
+                  <div style="width:58px;height:81px;border-radius:6px;border:1px dashed rgba(243,238,225,0.18);flex:none;"></div>
+                </sc-if>
+                <sc-for list="{{ p.cards }}" as="c" hint-placeholder-count="0">
+                  <sc-if value="{{ c.face }}">
+                    <div style="width:58px;height:81px;background:#F3EEE1;border-radius:6px;position:relative;flex:none;animation:dealIn 400ms cubic-bezier(0.2,0,0,1) backwards;">
+                      <div style="position:absolute;top:5px;left:6px;line-height:0.95;text-align:center;">
+                        <div style="font:700 21px 'IBM Plex Sans Condensed',sans-serif;color:{{ c.color }};">{{ c.rank }}</div>
+                        <div style="font-size:15px;color:{{ c.color }};">{{ c.suit }}</div>
+                      </div>
+                      <div style="position:absolute;right:5px;bottom:3px;font-size:28px;line-height:1;color:{{ c.color }};">{{ c.suit }}</div>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ c.back }}">
+                    <div style="width:58px;height:81px;border-radius:6px;flex:none;background:repeating-linear-gradient(45deg,#123227 0 6px,#0E2A20 6px 12px);border:1px solid rgba(243,238,225,0.15);animation:dealIn 400ms cubic-bezier(0.2,0,0,1) backwards;"></div>
+                  </sc-if>
+                </sc-for>
+                <div style="flex:1;"></div>
+                <div style="text-align:right;">
+                  <div style="font:600 40px 'IBM Plex Sans Condensed',sans-serif;font-variant-numeric:tabular-nums;line-height:1;color:{{ p.eqColor }};">{{ p.eqText }}</div>
+                  <div style="margin-top:6px;margin-left:auto;width:120px;height:6px;background:rgba(243,238,225,0.12);border-radius:999px;overflow:hidden;"><div style="height:100%;width:{{ p.eqW }};background:{{ p.barColor }};border-radius:999px;"></div></div>
+                </div>
+              </div>
+              <div style="display:flex;gap:14px;">
+                <div style="flex:1;">
+                  <div style="display:flex;justify-content:space-between;font-size:14px;color:rgba(243,238,225,0.45);"><span>VPIP</span><span style="color:rgba(243,238,225,0.7);font-variant-numeric:tabular-nums;">{{ p.vpip }}</span></div>
+                  <div style="margin-top:3px;height:4px;background:rgba(243,238,225,0.12);border-radius:999px;overflow:hidden;"><div style="height:100%;width:{{ p.vpipW }};background:rgba(243,238,225,0.45);"></div></div>
+                </div>
+                <div style="flex:1;">
+                  <div style="display:flex;justify-content:space-between;font-size:14px;color:rgba(243,238,225,0.45);"><span>PFR</span><span style="color:rgba(243,238,225,0.7);font-variant-numeric:tabular-nums;">{{ p.pfr }}</span></div>
+                  <div style="margin-top:3px;height:4px;background:rgba(243,238,225,0.12);border-radius:999px;overflow:hidden;"><div style="height:100%;width:{{ p.pfrW }};background:rgba(243,238,225,0.45);"></div></div>
+                </div>
+                <div style="flex:1;">
+                  <div style="display:flex;justify-content:space-between;font-size:14px;color:rgba(243,238,225,0.45);"><span>AF</span><span style="color:rgba(243,238,225,0.7);font-variant-numeric:tabular-nums;">{{ p.af }}</span></div>
+                  <div style="margin-top:3px;height:4px;background:rgba(243,238,225,0.12);border-radius:999px;overflow:hidden;"><div style="height:100%;width:{{ p.afW }};background:rgba(243,238,225,0.45);"></div></div>
+                </div>
+              </div>
+              <sc-if value="{{ behav }}" hint-placeholder-val="{{ true }}">
+                <div style="display:flex;align-items:center;gap:10px;margin-top:8px;">
+                  <span style="font-size:14px;color:rgba(243,238,225,0.45);">心率</span>
+                  <span style="font:500 20px 'IBM Plex Sans Condensed',sans-serif;font-variant-numeric:tabular-nums;">{{ p.hr }}</span>
+                  <svg width="80" height="24" style="flex:none;"><polyline points="{{ p.spark }}" fill="none" stroke="rgba(243,238,225,0.45)" stroke-width="1.5"></polyline></svg>
+                  <span style="font-size:14px;color:rgba(243,238,225,0.7);font-variant-numeric:tabular-nums;">{{ p.dhr }}</span>
+                  <div style="flex:1;"></div>
+                  <span style="font-size:13px;color:rgba(243,238,225,0.3);">相对基线</span>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <!-- 胜率之河 -->
+      <div style="height:118px;flex:none;position:relative;padding:6px 24px 0 24px;">
+        <div style="position:absolute;left:32px;top:8px;font-size:14px;letter-spacing:0.2em;color:rgba(243,238,225,0.35);z-index:2;">胜率之河</div>
+        {{ riverEl }}
+      </div>
+
+      <!-- 底栏：解说 + 机器人状态 -->
+      <div style="height:82px;flex:none;display:flex;align-items:center;gap:24px;padding:0 32px;border-top:1px solid rgba(243,238,225,0.08);">
+        <div style="width:0;flex:1;display:flex;flex-direction:column;gap:2px;overflow:hidden;">
+          <div style="font-size:20px;color:rgba(243,238,225,0.45);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ prevSay }}</div>
+          <div style="font-size:24px;color:#F3EEE1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">▸ {{ curSay }}</div>
+        </div>
+        <div style="flex:none;display:flex;align-items:center;gap:10px;">
+          <div style="width:8px;height:8px;border-radius:999px;background:{{ robotDot }};"></div>
+          <div style="font-size:20px;color:rgba(243,238,225,0.7);border:1px solid rgba(243,238,225,0.2);padding:4px 16px;border-radius:999px;white-space:nowrap;">{{ robotStatus }}</div>
+        </div>
+      </div>
+
+      <!-- 全下胜率对决 -->
+      <sc-if value="{{ duelShow }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute;left:0;right:0;top:64px;bottom:200px;background:rgba(8,30,23,0.84);display:flex;align-items:center;justify-content:center;gap:64px;z-index:6;">
+          <div style="text-align:center;min-width:340px;">
+            <div style="font:500 32px 'IBM Plex Sans','Noto Sans SC',sans-serif;margin-bottom:14px;">{{ duelAName }}</div>
+            <div style="display:flex;gap:10px;justify-content:center;margin-bottom:18px;">
+              <sc-for list="{{ duelACards }}" as="c" hint-placeholder-count="2">
+                <div style="width:74px;height:103px;background:#F3EEE1;border-radius:8px;position:relative;flex:none;">
+                  <div style="position:absolute;top:6px;left:7px;line-height:0.95;text-align:center;">
+                    <div style="font:700 27px 'IBM Plex Sans Condensed',sans-serif;color:{{ c.color }};">{{ c.rank }}</div>
+                    <div style="font-size:18px;color:{{ c.color }};">{{ c.suit }}</div>
+                  </div>
+                  <div style="position:absolute;right:6px;bottom:3px;font-size:36px;line-height:1;color:{{ c.color }};">{{ c.suit }}</div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="font:700 96px 'IBM Plex Sans Condensed',sans-serif;font-variant-numeric:tabular-nums;line-height:1;color:{{ duelAColor }};">{{ duelAEq }}</div>
+          </div>
+          <div style="text-align:center;color:rgba(243,238,225,0.45);align-self:center;">
+            <div style="display:flex;gap:8px;justify-content:center;margin-bottom:18px;">
+              <sc-for list="{{ boardCards }}" as="c" hint-placeholder-count="0">
+                <div style="width:52px;height:73px;background:#F3EEE1;border-radius:6px;position:relative;flex:none;">
+                  <div style="position:absolute;top:4px;left:5px;line-height:0.95;text-align:center;">
+                    <div style="font:700 18px 'IBM Plex Sans Condensed',sans-serif;color:{{ c.color }};">{{ c.rank }}</div>
+                    <div style="font-size:13px;color:{{ c.color }};">{{ c.suit }}</div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="font-size:20px;letter-spacing:0.15em;">剩余发牌</div>
+            <div style="font:600 44px 'IBM Plex Sans Condensed',sans-serif;font-variant-numeric:tabular-nums;color:rgba(243,238,225,0.9);">{{ duelRemain }}</div>
+          </div>
+          <div style="text-align:center;min-width:340px;">
+            <div style="font:500 32px 'IBM Plex Sans','Noto Sans SC',sans-serif;margin-bottom:14px;">{{ duelBName }}</div>
+            <div style="display:flex;gap:10px;justify-content:center;margin-bottom:18px;">
+              <sc-for list="{{ duelBCards }}" as="c" hint-placeholder-count="2">
+                <div style="width:74px;height:103px;background:#F3EEE1;border-radius:8px;position:relative;flex:none;">
+                  <div style="position:absolute;top:6px;left:7px;line-height:0.95;text-align:center;">
+                    <div style="font:700 27px 'IBM Plex Sans Condensed',sans-serif;color:{{ c.color }};">{{ c.rank }}</div>
+                    <div style="font-size:18px;color:{{ c.color }};">{{ c.suit }}</div>
+                  </div>
+                  <div style="position:absolute;right:6px;bottom:3px;font-size:36px;line-height:1;color:{{ c.color }};">{{ c.suit }}</div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="font:700 96px 'IBM Plex Sans Condensed',sans-serif;font-variant-numeric:tabular-nums;line-height:1;color:{{ duelBColor }};">{{ duelBEq }}</div>
+          </div>
+        </div>
+      </sc-if>
+
+    </div>
+  </div>
+
+  <!-- 演示控制条（非转播画面） -->
+  <div style="height:64px;flex:none;background:#0B1512;border-top:1px solid rgba(243,238,225,0.08);display:flex;align-items:center;gap:8px;padding:0 20px;font-family:'IBM Plex Mono','Noto Sans SC',monospace;font-size:13px;color:rgba(243,238,225,0.7);">
+    <button onClick="{{ play }}" style="font-family:inherit;font-size:13px;background:#D9A441;color:#081E17;border:none;border-radius:999px;padding:7px 18px;cursor:pointer;font-weight:600;">▶ 播放一手</button>
+    <button onClick="{{ nextStep }}" style="font-family:inherit;font-size:13px;background:transparent;color:rgba(243,238,225,0.85);border:1px solid rgba(243,238,225,0.25);border-radius:999px;padding:6px 16px;cursor:pointer;">下一步</button>
+    <div style="width:1px;height:24px;background:rgba(243,238,225,0.12);margin:0 8px;"></div>
+    <sc-for list="{{ jumps }}" as="j" hint-placeholder-count="6">
+      <button onClick="{{ j.go }}" style="font-family:inherit;font-size:13px;background:{{ j.bg }};color:{{ j.fg }};border:1px solid rgba(243,238,225,0.18);border-radius:999px;padding:6px 14px;cursor:pointer;">{{ j.label }}</button>
+    </sc-for>
+    <div style="flex:1;"></div>
+    <button onClick="{{ toggleGod }}" style="font-family:inherit;font-size:13px;background:{{ godBg }};color:{{ godFg }};border:1px solid rgba(243,238,225,0.18);border-radius:999px;padding:6px 14px;cursor:pointer;">{{ godLabel }}</button>
+    <button onClick="{{ toggleFour }}" style="font-family:inherit;font-size:13px;background:{{ fourBg }};color:{{ fourFg }};border:1px solid rgba(243,238,225,0.18);border-radius:999px;padding:6px 14px;cursor:pointer;">四色牌</button>
+    <button onClick="{{ toggleBehav }}" style="font-family:inherit;font-size:13px;background:{{ behavBg }};color:{{ behavFg }};border:1px solid rgba(243,238,225,0.18);border-radius:999px;padding:6px 14px;cursor:pointer;">行为层</button>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;speed&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:1,&quot;min&quot;:0.5,&quot;max&quot;:2,&quot;step&quot;:0.25,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;播放&quot;,&quot;description&quot;:&quot;自动播放速度倍率&quot;},&quot;autoPlayOnLoad&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;播放&quot;,&quot;description&quot;:&quot;载入后自动播放一手&quot;}}">
+class Component extends DCLogic {
+  state = { step: 0, auto: false, god: true, four: false, behav: true, scale: 0.5 };
+
+  constructor(props) {
+    super(props);
+    this.PLAYERS = [
+      { id: 1, name: '陈默', style: '紧凶', stack: 12400, hole: ['As', 'Ks'], hue: '#6E8FAE', vpip: 22, pfr: 18, af: 2.8, hr: 72, dhr: '+4', n: 120 },
+      { id: 2, name: '老周', style: '松凶', stack: 18200, hole: ['Qh', 'Qd'], hue: '#A8776B', vpip: 34, pfr: 24, af: 3.4, hr: 78, dhr: '+9', n: 96 },
+      { id: 3, name: '苏晴', style: '紧弱', stack: 6800, hole: ['7c', '2d'], hue: '#7BA183', vpip: 15, pfr: 6, af: 1.1, hr: 66, dhr: '−1', n: 44 },
+      { id: 4, name: '大飞', style: '松弱', stack: 9500, hole: ['Jd', 'Td'], hue: '#A79A6B', vpip: 48, pfr: 10, af: 0.8, hr: 88, dhr: '+12', n: 25 },
+      { id: 5, name: '林一', style: '紧凶', stack: 15600, hole: ['9s', '9h'], hue: '#8A7FA6', vpip: 20, pfr: 16, af: 2.2, hr: 70, dhr: '0', n: 150 },
+      { id: 6, name: '阿坤', style: '松凶', stack: 11000, hole: ['Ad', '5c'], hue: '#6FA0A0', vpip: 38, pfr: 22, af: 2.9, hr: 81, dhr: '+6', n: 77 }
+    ];
+    this.SCRIPT = [
+      { t: 'idle' },
+      { t: 'deal', dur: 2600, robot: '发牌中', say: '第 42 手开始，机器人发出底牌', eq: { 1: 21, 2: 26, 3: 8, 4: 15, 5: 17, 6: 13 }, mark: '翻牌前' },
+      { t: 'act', p: 1, a: 'raise', amt: 300, dur: 2000, say: '陈默加注到 300', eq: { 1: 24, 2: 27, 3: 7, 4: 14, 5: 16, 6: 12 } },
+      { t: 'act', p: 2, a: 'call', amt: 300, dur: 1800, say: '老周跟注 300' },
+      { t: 'act', p: 3, a: 'fold', dur: 1600, say: '苏晴弃牌', eq: { 1: 26, 2: 29, 3: 0, 4: 15, 5: 17, 6: 13 } },
+      { t: 'act', p: 4, a: 'call', amt: 300, dur: 1800, say: '大飞跟注 300' },
+      { t: 'act', p: 5, a: 'fold', dur: 1600, say: '林一弃掉小对子', eq: { 1: 29, 2: 33, 3: 0, 4: 18, 5: 0, 6: 20 } },
+      { t: 'act', p: 6, a: 'fold', dur: 2000, say: '阿坤弃牌——三人看翻牌，彩池 1,050', eq: { 1: 36, 2: 41, 3: 0, 4: 23, 5: 0, 6: 0 } },
+      { t: 'street', street: 'flop', cards: ['Kh', 'Qs', 'Th'], dur: 3400, robot: '验证', say: '翻牌：K♥ Q♠ T♥——老周中三条，陈默顶对加听顺', eq: { 1: 30, 2: 52, 4: 18 }, mark: '翻牌' },
+      { t: 'act', p: 1, a: 'check', dur: 1600, say: '陈默过牌' },
+      { t: 'act', p: 2, a: 'bet', amt: 600, dur: 1800, say: '老周下注 600', eq: { 1: 29, 2: 53, 4: 18 } },
+      { t: 'act', p: 4, a: 'call', amt: 600, dur: 1800, say: '大飞跟注 600' },
+      { t: 'act', p: 1, a: 'call', amt: 600, dur: 2000, say: '陈默跟注——彩池 2,850' },
+      { t: 'street', street: 'turn', cards: ['2c'], dur: 3000, robot: '验证', say: '转牌：2♣，一张空白牌', eq: { 1: 16, 2: 73, 4: 11 }, mark: '转牌' },
+      { t: 'act', p: 1, a: 'check', dur: 1600, say: '陈默过牌' },
+      { t: 'act', p: 2, a: 'bet', amt: 2000, dur: 1800, say: '老周下注 2,000', eq: { 1: 15, 2: 75, 4: 10 } },
+      { t: 'act', p: 4, a: 'fold', dur: 1600, say: '大飞弃掉两头顺听牌', eq: { 1: 17, 2: 83, 4: 0 } },
+      { t: 'act', p: 1, a: 'allin', amt: 11500, dur: 2200, say: '陈默全下 11,500！', eq: { 1: 18, 2: 82 } },
+      { t: 'act', p: 2, a: 'call', amt: 11500, dur: 2000, reveal: true, say: '老周跟注——摊开底牌' },
+      { t: 'duel', remain: 1, dur: 3400, say: '胜率对决：陈默 18% · 老周 82%，剩 1 张河牌', eq: { 1: 18, 2: 82 } },
+      { t: 'street', street: 'river', cards: ['Jd'], dur: 3400, robot: '验证', say: '河牌：J♦！', eq: { 1: 100, 2: 0 }, mark: '河牌' },
+      { t: 'showdown', winner: 1, dur: 6000, robot: '完成', say: '陈默击中坚果顺子，赢下 25,850 彩池', eq: { 1: 100, 2: 0 } }
+    ];
+    this.SEATPOS = {
+      1: { x: '13%', y: '20%', px: [161, 143], side: 'L' },
+      2: { x: '7%', y: '46%', px: [87, 329], side: 'L' },
+      3: { x: '13%', y: '73%', px: [161, 523], side: 'L' },
+      4: { x: '87%', y: '20%', px: [1079, 143], side: 'R' },
+      5: { x: '93%', y: '46%', px: [1153, 329], side: 'R' },
+      6: { x: '87%', y: '73%', px: [1079, 523], side: 'R' }
+    };
+    this.disp = { pot: 0, eq: {} };
+    this.anim = {};
+    this._raf = null;
+    this._t = null;
+    this.sparks = {};
+    this.PLAYERS.forEach(p => {
+      let pts = [], v = 12;
+      for (let i = 0; i < 21; i++) {
+        v += Math.sin(i * 1.7 + p.id * 2.3) * 2.6;
+        pts.push((i * 4) + ',' + Math.max(2, Math.min(22, Math.round(20 - v / 2))));
+      }
+      this.sparks[p.id] = pts.join(' ');
+    });
+  }
+
+  fmt(n) { return Math.round(n).toLocaleString('en-US'); }
+
+  componentDidMount() {
+    this.rm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const onR = () => {
+      const w = window.innerWidth, h = window.innerHeight - 64;
+      this.setState({ scale: Math.max(0.1, Math.min(w / 1920, h / 1080)) });
+    };
+    this._onR = onR;
+    window.addEventListener('resize', onR);
+    onR();
+    if (this.props.autoPlayOnLoad ?? true) { this._t = setTimeout(() => this.play(), 800); }
+  }
+
+  componentWillUnmount() {
+    window.removeEventListener('resize', this._onR);
+    clearTimeout(this._t);
+    if (this._raf) cancelAnimationFrame(this._raf);
+  }
+
+  derive(upto) {
+    const d = { pot: 0, board: [], streetIdx: -1, folded: {}, bets: {}, stacks: {}, acting: null, acts: {}, mode: 'idle', robot: '待机', history: [], says: ['节目待机——等待开局'], winner: null, remain: null, duel: false, reveal: false, fx: null };
+    this.PLAYERS.forEach(p => d.stacks[p.id] = p.stack);
+    for (let i = 1; i <= upto && i < this.SCRIPT.length; i++) {
+      const st = this.SCRIPT[i];
+      if (st.robot) d.robot = st.robot;
+      if (st.say) d.says.push(st.say);
+      if (st.reveal) d.reveal = true;
+      if (st.t === 'deal') {
+        d.mode = 'play'; d.streetIdx = 0;
+        d.bets = { 5: 50, 6: 100 }; d.stacks[5] -= 50; d.stacks[6] -= 100; d.pot = 150;
+      } else if (st.t === 'act') {
+        d.acting = st.p;
+        if (st.a === 'fold') { d.folded[st.p] = true; d.acts[st.p] = '弃牌'; }
+        else if (st.a === 'check') { d.acts[st.p] = '过牌'; }
+        else {
+          const prev = d.bets[st.p] || 0, delta = st.amt - prev;
+          d.pot += delta; d.stacks[st.p] -= delta; d.bets[st.p] = st.amt;
+          d.acts[st.p] = st.a === 'raise' ? '加注到 ' + this.fmt(st.amt) : st.a === 'bet' ? '下注 ' + this.fmt(st.amt) : st.a === 'allin' ? '全下' : '跟注 ' + this.fmt(st.amt);
+          if (i === upto) d.fx = { p: st.p, step: i };
+        }
+      } else if (st.t === 'street') {
+        d.board = d.board.concat(st.cards);
+        d.streetIdx = { flop: 1, turn: 2, river: 3 }[st.street];
+        d.bets = {}; d.acting = null;
+        if (d.duel && d.remain != null) d.remain = Math.max(0, d.remain - st.cards.length);
+      } else if (st.t === 'duel') {
+        d.duel = true; d.remain = st.remain; d.acting = null;
+      } else if (st.t === 'showdown') {
+        d.mode = 'showdown'; d.duel = false; d.winner = st.winner; d.streetIdx = 4; d.acting = null;
+      }
+      if (st.eq) d.history.push({ eq: st.eq, mark: st.mark || null });
+    }
+    return d;
+  }
+
+  getD(k) { return k === 'pot' ? this.disp.pot : (this.disp.eq[k] || 0); }
+  setD(k, v) { if (k === 'pot') this.disp.pot = v; else this.disp.eq[k] = v; }
+
+  tweenTo(targets) {
+    const now = performance.now(), dur = this.rm ? 1 : 800;
+    for (const k in targets) {
+      if (Math.abs(this.getD(k) - targets[k]) < 0.01) continue;
+      this.anim[k] = { from: this.getD(k), to: targets[k], start: now, dur };
+    }
+    this.runRaf();
+  }
+
+  runRaf() {
+    if (this._raf) return;
+    const stepFn = (t) => {
+      let active = false;
+      for (const k in this.anim) {
+        const a = this.anim[k];
+        const p = a.dur ? Math.min(1, (t - a.start) / a.dur) : 1;
+        const e = 1 - Math.pow(1 - p, 3);
+        this.setD(k, a.from + (a.to - a.from) * e);
+        if (p < 1) active = true; else delete this.anim[k];
+      }
+      this.forceUpdate();
+      this._raf = active ? requestAnimationFrame(stepFn) : null;
+    };
+    this._raf = requestAnimationFrame(stepFn);
+  }
+
+  setStep(n) {
+    n = Math.max(0, Math.min(this.SCRIPT.length - 1, n));
+    const d = this.derive(n);
+    const t = { pot: d.pot };
+    const last = d.history[d.history.length - 1];
+    this.PLAYERS.forEach(p => { t[p.id] = last ? (last.eq[p.id] || 0) : 0; });
+    this.setState({ step: n });
+    this.tweenTo(t);
+  }
+
+  advanceAuto() {
+    if (!this.state.auto) return;
+    const n = this.state.step + 1;
+    if (n >= this.SCRIPT.length) { this.setState({ auto: false }); return; }
+    this.setStep(n);
+    const dur = (this.SCRIPT[n].dur || 1800) / (this.props.speed || 1);
+    this._t = setTimeout(() => this.advanceAuto(), dur);
+  }
+
+  play() {
+    clearTimeout(this._t);
+    this.setState({ auto: true, step: 0 }, () => {
+      this.setStep(0);
+      this._t = setTimeout(() => this.advanceAuto(), 900);
+    });
+  }
+
+  jump(n) {
+    clearTimeout(this._t);
+    this.setState({ auto: false });
+    this.setStep(n);
+  }
+
+  cardVM(code, back) {
+    if (back) return { face: false, back: true };
+    const r = code[0] === 'T' ? '10' : code[0], s = code[1];
+    const suit = { s: '♠', h: '♥', d: '♦', c: '♣' }[s];
+    const color = this.state.four
+      ? { s: '#1A1A18', h: '#C6403B', d: '#2C6FBF', c: '#2E7D4F' }[s]
+      : (s === 'h' || s === 'd' ? '#C6403B' : '#1A1A18');
+    return { face: true, back: false, rank: r, suit, color };
+  }
+
+  buildRiver(d) {
+    const W = 1872, H = 100;
+    const el = React.createElement;
+    const hist = d.history;
+    if (hist.length < 2) {
+      return el('div', { style: { position: 'absolute', left: 24, right: 24, top: 0, bottom: 8, display: 'flex', alignItems: 'center' } },
+        el('div', { style: { height: 2, flex: 1, background: 'rgba(243,238,225,0.4)', animation: 'idlePulse 3s ease-in-out infinite' } }));
+    }
+    const dispHist = hist.map((h, i) => {
+      if (i < hist.length - 1) return h.eq;
+      const m = {}; this.PLAYERS.forEach(p => m[p.id] = this.disp.eq[p.id] || 0); return m;
+    });
+    const N = dispHist.length, xs = i => i * (W / (N - 1));
+    const cols = dispHist.map(eq => {
+      let c = 0; const m = {};
+      this.PLAYERS.forEach(p => { const v = eq[p.id] || 0; m[p.id] = [c, c + v]; c += v; });
+      if (c <= 0) c = 1;
+      this.PLAYERS.forEach(p => { m[p.id] = [m[p.id][0] / c * 100, m[p.id][1] / c * 100]; });
+      return m;
+    });
+    const kids = [];
+    this.PLAYERS.forEach(p => {
+      const top = cols.map((m, i) => xs(i).toFixed(1) + ',' + (H - m[p.id][1] / 100 * H).toFixed(1));
+      const bot = cols.map((m, i) => xs(i).toFixed(1) + ',' + (H - m[p.id][0] / 100 * H).toFixed(1)).reverse();
+      kids.push(el('path', { key: 'b' + p.id, d: 'M' + top.join(' L ') + ' L ' + bot.join(' L ') + ' Z', fill: p.hue, fillOpacity: 0.55, stroke: 'rgba(8,30,23,0.6)', strokeWidth: 1 }));
+    });
+    hist.forEach((h, i) => {
+      if (!h.mark) return;
+      const x = xs(i);
+      kids.push(el('line', { key: 'l' + i, x1: x, y1: 0, x2: x, y2: H, stroke: 'rgba(243,238,225,0.5)', strokeWidth: 1 }));
+      kids.push(el('text', { key: 't' + i, x: Math.min(x + 6, W - 60), y: 18, fill: 'rgba(243,238,225,0.7)', fontSize: 15, fontFamily: "'IBM Plex Sans','Noto Sans SC',sans-serif" }, h.mark));
+    });
+    const frozen = d.mode === 'showdown';
+    return el('svg', {
+      width: '100%', height: H, viewBox: '0 0 ' + W + ' ' + H, preserveAspectRatio: 'none',
+      style: { display: 'block', marginTop: 8, filter: frozen ? 'brightness(1.2)' : 'none', transition: 'filter 600ms' }
+    }, kids);
+  }
+
+  renderVals() {
+    const st = this.state;
+    const d = this.derive(st.step);
+    const last = d.history[d.history.length - 1];
+    const targetEq = {};
+    this.PLAYERS.forEach(p => targetEq[p.id] = last ? (last.eq[p.id] || 0) : 0);
+    const aliveIds = this.PLAYERS.map(p => p.id).filter(id => !d.folded[id] && targetEq[id] > 0);
+    let leaderId = null, best = -1;
+    aliveIds.forEach(id => { if (targetEq[id] > best) { best = targetEq[id]; leaderId = id; } });
+    if (d.mode === 'idle') leaderId = null;
+
+    const mkPlayer = (p) => {
+      const folded = d.folded[p.id];
+      const acting = d.acting === p.id;
+      const eqv = this.disp.eq[p.id] || 0;
+      const dealt = d.streetIdx >= 0;
+      const showFace = st.god || (d.reveal && !folded);
+      const isLeader = p.id === leaderId;
+      return {
+        name: p.name, style: p.style, est: p.n < 30, nText: 'n=' + p.n, hue: p.hue,
+        actionText: d.acts[p.id] || '',
+        noCards: !dealt,
+        cards: dealt ? p.hole.map(c => this.cardVM(c, !showFace)) : [],
+        eqText: d.mode === 'idle' ? '—' : Math.round(eqv) + '%',
+        eqColor: isLeader ? '#D9A441' : '#F3EEE1',
+        eqW: Math.max(0, Math.min(100, eqv)) + '%',
+        barColor: isLeader ? '#D9A441' : 'rgba(243,238,225,0.45)',
+        opacity: folded ? 0.45 : 1, sat: folded ? 0.4 : 1,
+        borderColor: acting ? 'rgba(217,164,65,0.9)' : 'rgba(243,238,225,0.08)',
+        vpip: p.vpip, pfr: p.pfr, af: p.af.toFixed(1),
+        vpipW: p.vpip + '%', pfrW: p.pfr + '%', afW: Math.min(100, p.af / 5 * 100) + '%',
+        hr: p.hr, dhr: 'Δ' + p.dhr, spark: this.sparks[p.id],
+        won: d.winner === p.id
+      };
+    };
+
+    const seats = this.PLAYERS.map(p => {
+      const sp = this.SEATPOS[p.id];
+      const acting = d.acting === p.id;
+      const folded = d.folded[p.id];
+      return {
+        x: sp.x, y: sp.y, hue: p.hue, initial: p.name[0],
+        stackText: this.fmt(d.stacks[p.id]),
+        dealer: p.id === 4 && d.mode !== 'idle',
+        anim: acting ? 'breatheGold 2s ease-in-out infinite' : 'none',
+        betText: d.bets[p.id] ? this.fmt(d.bets[p.id]) : '',
+        opacity: folded ? 0.4 : 1, sat: folded ? 0.4 : 1,
+        connShow: acting, connTop: sp.y,
+        connLeft: sp.side === 'L' ? '0%' : sp.x,
+        connWidth: sp.side === 'L' ? sp.x : (100 - parseFloat(sp.x)) + '%'
+      };
+    });
+
+    const boardCards = d.board.map((c, i) => {
+      const vm = this.cardVM(c, false);
+      vm.delay = (d.board.length === 3 ? i * 120 : 0) + 'ms';
+      return vm;
+    });
+
+    const streets = ['翻牌前', '翻牌圈', '转牌圈', '河牌圈', '摊牌'];
+    const dots = streets.map((s, i) => ({
+      bg: i === d.streetIdx ? '#D9A441' : '#F3EEE1',
+      op: i === d.streetIdx ? 1 : (i < d.streetIdx ? 0.9 : 0.3)
+    }));
+
+    const potN = Math.round(this.disp.pot);
+    const chipCount = potN > 0 ? Math.min(12, Math.ceil(potN / 2400)) : 0;
+    const chipCols = ['#D9A441', '#F3EEE1', '#C6403B'];
+    const potChips = Array.from({ length: chipCount }, (_, i) => ({ bg: chipCols[i % 3] }));
+
+    let fxDx = '0px', fxDy = '0px', fxA = false, fxB = false;
+    if (d.fx && !this.rm) {
+      const sp = this.SEATPOS[d.fx.p];
+      fxDx = (sp.px[0] - 620) + 'px'; fxDy = (sp.px[1] - 470) + 'px';
+      if (d.fx.step % 2 === 0) fxA = true; else fxB = true;
+    }
+
+    const says = d.says;
+    const jumpDefs = [['待机', 0], ['发牌', 1], ['翻牌圈', 8], ['转牌圈', 13], ['全下对决', 19], ['摊牌', 21]];
+    const jumps = jumpDefs.map(([label, n], i) => {
+      const next = jumpDefs[i + 1] ? jumpDefs[i + 1][1] : Infinity;
+      const active = st.step >= n && st.step < next;
+      return { label, go: () => this.jump(n), bg: active ? 'rgba(217,164,65,0.18)' : 'transparent', fg: active ? '#D9A441' : 'rgba(243,238,225,0.7)' };
+    });
+
+    const p1 = this.PLAYERS[0], p2 = this.PLAYERS[1];
+    const aEq = Math.round(this.disp.eq[1] || 0), bEq = Math.round(this.disp.eq[2] || 0);
+
+    const tog = (on) => ({ bg: on ? 'rgba(217,164,65,0.18)' : 'transparent', fg: on ? '#D9A441' : 'rgba(243,238,225,0.55)' });
+
+    return {
+      scale: st.scale.toFixed(4),
+      behav: st.behav,
+      leftPlayers: [1, 2, 3].map(i => mkPlayer(this.PLAYERS[i - 1])),
+      rightPlayers: [4, 5, 6].map(i => mkPlayer(this.PLAYERS[i - 1])),
+      seats, boardCards, dots,
+      streetName: d.streetIdx < 0 ? '待机' : streets[d.streetIdx],
+      isIdle: d.mode === 'idle',
+      potShow: potN > 0,
+      potText: this.fmt(potN),
+      potChips, fxA, fxB, fxDx, fxDy,
+      robotStatus: d.robot,
+      robotDot: d.mode === 'idle' ? 'rgba(243,238,225,0.35)' : '#D9A441',
+      prevSay: says.length > 1 ? says[says.length - 2] : '',
+      curSay: says[says.length - 1],
+      riverEl: this.buildRiver(d),
+      duelShow: d.duel,
+      duelAName: p1.name, duelBName: p2.name,
+      duelACards: p1.hole.map(c => this.cardVM(c, false)),
+      duelBCards: p2.hole.map(c => this.cardVM(c, false)),
+      duelAEq: aEq + '%', duelBEq: bEq + '%',
+      duelAColor: aEq >= bEq ? '#D9A441' : '#F3EEE1',
+      duelBColor: bEq > aEq ? '#D9A441' : '#F3EEE1',
+      duelRemain: d.remain == null ? '—' : String(d.remain),
+      play: () => this.play(),
+      nextStep: () => { clearTimeout(this._t); this.setState({ auto: false }); this.setStep(st.step + 1); },
+      jumps,
+      toggleGod: () => this.setState({ god: !st.god }),
+      toggleFour: () => this.setState({ four: !st.four }),
+      toggleBehav: () => this.setState({ behav: !st.behav }),
+      godLabel: st.god ? '上帝模式' : '公开模式',
+      godBg: tog(st.god).bg, godFg: tog(st.god).fg,
+      fourBg: tog(st.four).bg, fourFg: tog(st.four).fg,
+      behavBg: tog(st.behav).bg, behavFg: tog(st.behav).fg
+    };
+  }
+}
+</script>
+</body>
+</html>
