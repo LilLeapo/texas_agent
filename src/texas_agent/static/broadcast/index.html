@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script src="./support.js"></script>
+<script src="./live_adapter.js"></script>
 </head>
 <body>
 <x-dc>
@@ -30,8 +31,8 @@
 
       <!-- 顶栏 -->
       <div style="height:64px;flex:none;display:flex;align-items:center;padding:0 32px;gap:20px;border-bottom:1px solid rgba(243,238,225,0.08);">
-        <div style="font:600 28px 'IBM Plex Sans Condensed','Noto Sans SC',sans-serif;letter-spacing:0.02em;">手牌 #42</div>
-        <div style="font-size:24px;color:rgba(243,238,225,0.7);">盲注 50 / 100</div>
+        <div style="font:600 28px 'IBM Plex Sans Condensed','Noto Sans SC',sans-serif;letter-spacing:0.02em;">{{ handText }}</div>
+        <div style="font-size:24px;color:rgba(243,238,225,0.7);">{{ blindsText }}</div>
         <div style="flex:1;"></div>
         <div style="display:flex;align-items:center;gap:10px;">
           <sc-for list="{{ dots }}" as="dt" hint-placeholder-count="5">
@@ -83,6 +84,7 @@
                   <div style="margin-top:6px;margin-left:auto;width:120px;height:6px;background:rgba(243,238,225,0.12);border-radius:999px;overflow:hidden;"><div style="height:100%;width:{{ p.eqW }};background:{{ p.barColor }};border-radius:999px;"></div></div>
                 </div>
               </div>
+              <sc-if value="{{ statsShow }}" hint-placeholder-val="{{ false }}">
               <div style="display:flex;gap:14px;">
                 <div style="flex:1;">
                   <div style="display:flex;justify-content:space-between;font-size:14px;color:rgba(243,238,225,0.45);"><span>VPIP</span><span style="color:rgba(243,238,225,0.7);font-variant-numeric:tabular-nums;">{{ p.vpip }}</span></div>
@@ -97,6 +99,7 @@
                   <div style="margin-top:3px;height:4px;background:rgba(243,238,225,0.12);border-radius:999px;overflow:hidden;"><div style="height:100%;width:{{ p.afW }};background:rgba(243,238,225,0.45);"></div></div>
                 </div>
               </div>
+              </sc-if>
               <sc-if value="{{ behav }}" hint-placeholder-val="{{ true }}">
                 <div style="display:flex;align-items:center;gap:10px;margin-top:8px;">
                   <span style="font-size:14px;color:rgba(243,238,225,0.45);">心率</span>
@@ -142,7 +145,7 @@
 
           <!-- 待机提示 -->
           <sc-if value="{{ isIdle }}" hint-placeholder-val="{{ true }}">
-            <div style="position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);text-align:center;color:rgba(243,238,225,0.45);font-size:24px;z-index:2;">等待开局——点击下方「播放一手」</div>
+            <div style="position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);text-align:center;color:rgba(243,238,225,0.45);font-size:24px;z-index:2;">{{ idleText }}</div>
           </sc-if>
 
           <!-- 彩池 -->
@@ -210,6 +213,7 @@
                   <div style="margin-top:6px;margin-left:auto;width:120px;height:6px;background:rgba(243,238,225,0.12);border-radius:999px;overflow:hidden;"><div style="height:100%;width:{{ p.eqW }};background:{{ p.barColor }};border-radius:999px;"></div></div>
                 </div>
               </div>
+              <sc-if value="{{ statsShow }}" hint-placeholder-val="{{ false }}">
               <div style="display:flex;gap:14px;">
                 <div style="flex:1;">
                   <div style="display:flex;justify-content:space-between;font-size:14px;color:rgba(243,238,225,0.45);"><span>VPIP</span><span style="color:rgba(243,238,225,0.7);font-variant-numeric:tabular-nums;">{{ p.vpip }}</span></div>
@@ -224,6 +228,7 @@
                   <div style="margin-top:3px;height:4px;background:rgba(243,238,225,0.12);border-radius:999px;overflow:hidden;"><div style="height:100%;width:{{ p.afW }};background:rgba(243,238,225,0.45);"></div></div>
                 </div>
               </div>
+              </sc-if>
               <sc-if value="{{ behav }}" hint-placeholder-val="{{ true }}">
                 <div style="display:flex;align-items:center;gap:10px;margin-top:8px;">
                   <span style="font-size:14px;color:rgba(243,238,225,0.45);">心率</span>
@@ -312,81 +317,38 @@
 
   <!-- 演示控制条（非转播画面） -->
   <div style="height:64px;flex:none;background:#0B1512;border-top:1px solid rgba(243,238,225,0.08);display:flex;align-items:center;gap:8px;padding:0 20px;font-family:'IBM Plex Mono','Noto Sans SC',monospace;font-size:13px;color:rgba(243,238,225,0.7);">
-    <button onClick="{{ play }}" style="font-family:inherit;font-size:13px;background:#D9A441;color:#081E17;border:none;border-radius:999px;padding:7px 18px;cursor:pointer;font-weight:600;">▶ 播放一手</button>
-    <button onClick="{{ nextStep }}" style="font-family:inherit;font-size:13px;background:transparent;color:rgba(243,238,225,0.85);border:1px solid rgba(243,238,225,0.25);border-radius:999px;padding:6px 16px;cursor:pointer;">下一步</button>
-    <div style="width:1px;height:24px;background:rgba(243,238,225,0.12);margin:0 8px;"></div>
-    <sc-for list="{{ jumps }}" as="j" hint-placeholder-count="6">
-      <button onClick="{{ j.go }}" style="font-family:inherit;font-size:13px;background:{{ j.bg }};color:{{ j.fg }};border:1px solid rgba(243,238,225,0.18);border-radius:999px;padding:6px 14px;cursor:pointer;">{{ j.label }}</button>
-    </sc-for>
+    <span style="color:{{ connColor }};white-space:nowrap;">{{ connStatus }}</span>
     <div style="flex:1;"></div>
     <button onClick="{{ toggleGod }}" style="font-family:inherit;font-size:13px;background:{{ godBg }};color:{{ godFg }};border:1px solid rgba(243,238,225,0.18);border-radius:999px;padding:6px 14px;cursor:pointer;">{{ godLabel }}</button>
     <button onClick="{{ toggleFour }}" style="font-family:inherit;font-size:13px;background:{{ fourBg }};color:{{ fourFg }};border:1px solid rgba(243,238,225,0.18);border-radius:999px;padding:6px 14px;cursor:pointer;">四色牌</button>
-    <button onClick="{{ toggleBehav }}" style="font-family:inherit;font-size:13px;background:{{ behavBg }};color:{{ behavFg }};border:1px solid rgba(243,238,225,0.18);border-radius:999px;padding:6px 14px;cursor:pointer;">行为层</button>
   </div>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props="{&quot;speed&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:1,&quot;min&quot;:0.5,&quot;max&quot;:2,&quot;step&quot;:0.25,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;播放&quot;,&quot;description&quot;:&quot;自动播放速度倍率&quot;},&quot;autoPlayOnLoad&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;播放&quot;,&quot;description&quot;:&quot;载入后自动播放一手&quot;}}">
+<script type="text/x-dc" data-dc-script>
 class Component extends DCLogic {
-  state = { step: 0, auto: false, god: true, four: false, behav: true, scale: 0.5 };
+  state = { god: false, four: false, scale: 0.5 };
 
   constructor(props) {
     super(props);
-    this.PLAYERS = [
-      { id: 1, name: '陈默', style: '紧凶', stack: 12400, hole: ['As', 'Ks'], hue: '#6E8FAE', vpip: 22, pfr: 18, af: 2.8, hr: 72, dhr: '+4', n: 120 },
-      { id: 2, name: '老周', style: '松凶', stack: 18200, hole: ['Qh', 'Qd'], hue: '#A8776B', vpip: 34, pfr: 24, af: 3.4, hr: 78, dhr: '+9', n: 96 },
-      { id: 3, name: '苏晴', style: '紧弱', stack: 6800, hole: ['7c', '2d'], hue: '#7BA183', vpip: 15, pfr: 6, af: 1.1, hr: 66, dhr: '−1', n: 44 },
-      { id: 4, name: '大飞', style: '松弱', stack: 9500, hole: ['Jd', 'Td'], hue: '#A79A6B', vpip: 48, pfr: 10, af: 0.8, hr: 88, dhr: '+12', n: 25 },
-      { id: 5, name: '林一', style: '紧凶', stack: 15600, hole: ['9s', '9h'], hue: '#8A7FA6', vpip: 20, pfr: 16, af: 2.2, hr: 70, dhr: '0', n: 150 },
-      { id: 6, name: '阿坤', style: '松凶', stack: 11000, hole: ['Ad', '5c'], hue: '#6FA0A0', vpip: 38, pfr: 22, af: 2.9, hr: 81, dhr: '+6', n: 77 }
-    ];
-    this.SCRIPT = [
-      { t: 'idle' },
-      { t: 'deal', dur: 2600, robot: '发牌中', say: '第 42 手开始，机器人发出底牌', eq: { 1: 21, 2: 26, 3: 8, 4: 15, 5: 17, 6: 13 }, mark: '翻牌前' },
-      { t: 'act', p: 1, a: 'raise', amt: 300, dur: 2000, say: '陈默加注到 300', eq: { 1: 24, 2: 27, 3: 7, 4: 14, 5: 16, 6: 12 } },
-      { t: 'act', p: 2, a: 'call', amt: 300, dur: 1800, say: '老周跟注 300' },
-      { t: 'act', p: 3, a: 'fold', dur: 1600, say: '苏晴弃牌', eq: { 1: 26, 2: 29, 3: 0, 4: 15, 5: 17, 6: 13 } },
-      { t: 'act', p: 4, a: 'call', amt: 300, dur: 1800, say: '大飞跟注 300' },
-      { t: 'act', p: 5, a: 'fold', dur: 1600, say: '林一弃掉小对子', eq: { 1: 29, 2: 33, 3: 0, 4: 18, 5: 0, 6: 20 } },
-      { t: 'act', p: 6, a: 'fold', dur: 2000, say: '阿坤弃牌——三人看翻牌，彩池 1,050', eq: { 1: 36, 2: 41, 3: 0, 4: 23, 5: 0, 6: 0 } },
-      { t: 'street', street: 'flop', cards: ['Kh', 'Qs', 'Th'], dur: 3400, robot: '验证', say: '翻牌：K♥ Q♠ T♥——老周中三条，陈默顶对加听顺', eq: { 1: 30, 2: 52, 4: 18 }, mark: '翻牌' },
-      { t: 'act', p: 1, a: 'check', dur: 1600, say: '陈默过牌' },
-      { t: 'act', p: 2, a: 'bet', amt: 600, dur: 1800, say: '老周下注 600', eq: { 1: 29, 2: 53, 4: 18 } },
-      { t: 'act', p: 4, a: 'call', amt: 600, dur: 1800, say: '大飞跟注 600' },
-      { t: 'act', p: 1, a: 'call', amt: 600, dur: 2000, say: '陈默跟注——彩池 2,850' },
-      { t: 'street', street: 'turn', cards: ['2c'], dur: 3000, robot: '验证', say: '转牌：2♣，一张空白牌', eq: { 1: 16, 2: 73, 4: 11 }, mark: '转牌' },
-      { t: 'act', p: 1, a: 'check', dur: 1600, say: '陈默过牌' },
-      { t: 'act', p: 2, a: 'bet', amt: 2000, dur: 1800, say: '老周下注 2,000', eq: { 1: 15, 2: 75, 4: 10 } },
-      { t: 'act', p: 4, a: 'fold', dur: 1600, say: '大飞弃掉两头顺听牌', eq: { 1: 17, 2: 83, 4: 0 } },
-      { t: 'act', p: 1, a: 'allin', amt: 11500, dur: 2200, say: '陈默全下 11,500！', eq: { 1: 18, 2: 82 } },
-      { t: 'act', p: 2, a: 'call', amt: 11500, dur: 2000, reveal: true, say: '老周跟注——摊开底牌' },
-      { t: 'duel', remain: 1, dur: 3400, say: '胜率对决：陈默 18% · 老周 82%，剩 1 张河牌', eq: { 1: 18, 2: 82 } },
-      { t: 'street', street: 'river', cards: ['Jd'], dur: 3400, robot: '验证', say: '河牌：J♦！', eq: { 1: 100, 2: 0 }, mark: '河牌' },
-      { t: 'showdown', winner: 1, dur: 6000, robot: '完成', say: '陈默击中坚果顺子，赢下 25,850 彩池', eq: { 1: 100, 2: 0 } }
-    ];
-    this.SEATPOS = {
-      1: { x: '13%', y: '20%', px: [161, 143], side: 'L' },
-      2: { x: '7%', y: '46%', px: [87, 329], side: 'L' },
-      3: { x: '13%', y: '73%', px: [161, 523], side: 'L' },
-      4: { x: '87%', y: '20%', px: [1079, 143], side: 'R' },
-      5: { x: '93%', y: '46%', px: [1153, 329], side: 'R' },
-      6: { x: '87%', y: '73%', px: [1079, 523], side: 'R' }
-    };
-    this.disp = { pot: 0, eq: {} };
+    // 座位号 0 基, 与真实牌桌直接对应(见 docs/schema.md)。名字/风格标签/配色
+    // 没有总线数据源, 是前端本地配置——赛前按实际上场玩家改这三个数组即可;
+    // 其余字段全部来自 live_adapter.js 聚合的实时视图模型。
+    this.NAMES = ['陈默', '老周', '苏晴', '大飞', '林一', '阿坤', '小北', '阿泰', '阿蓝'];
+    this.STYLES = ['紧凶', '松凶', '紧弱', '松弱', '紧凶', '松凶', '紧弱', '松弱', '紧凶'];
+    this.HUES = ['#6E8FAE', '#A8776B', '#7BA183', '#A79A6B', '#8A7FA6', '#6FA0A0', '#B08497', '#7C9473', '#9C8F5E'];
+    this.disp = {};   // getD/setD 的 tween 缓存: key 'pot' 或座位号(字符串)
     this.anim = {};
     this._raf = null;
-    this._t = null;
-    this.sparks = {};
-    this.PLAYERS.forEach(p => {
-      let pts = [], v = 12;
-      for (let i = 0; i < 21; i++) {
-        v += Math.sin(i * 1.7 + p.id * 2.3) * 2.6;
-        pts.push((i * 4) + ',' + Math.max(2, Math.min(22, Math.round(20 - v / 2))));
-      }
-      this.sparks[p.id] = pts.join(' ');
-    });
+    this._live = null;
+    this.live = null;   // TexasLive 的当前视图模型, 首帧前先用 freshState() 占位
   }
 
   fmt(n) { return Math.round(n).toLocaleString('en-US'); }
+
+  wsUrl() {
+    return new URLSearchParams(location.search).get('ws') ||
+      ('ws://' + location.hostname + ':8766');
+  }
 
   componentDidMount() {
     this.rm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -397,53 +359,32 @@ class Component extends DCLogic {
     this._onR = onR;
     window.addEventListener('resize', onR);
     onR();
-    if (this.props.autoPlayOnLoad ?? true) { this._t = setTimeout(() => this.play(), 800); }
+    this._live = TexasLive.connect({
+      url: this.wsUrl(),
+      names: this.NAMES,
+      onUpdate: (vm) => this.onLive(vm)
+    });
+    this.live = this._live.state();
   }
 
   componentWillUnmount() {
     window.removeEventListener('resize', this._onR);
-    clearTimeout(this._t);
     if (this._raf) cancelAnimationFrame(this._raf);
+    if (this._live) this._live.close();
   }
 
-  derive(upto) {
-    const d = { pot: 0, board: [], streetIdx: -1, folded: {}, bets: {}, stacks: {}, acting: null, acts: {}, mode: 'idle', robot: '待机', history: [], says: ['节目待机——等待开局'], winner: null, remain: null, duel: false, reveal: false, fx: null };
-    this.PLAYERS.forEach(p => d.stacks[p.id] = p.stack);
-    for (let i = 1; i <= upto && i < this.SCRIPT.length; i++) {
-      const st = this.SCRIPT[i];
-      if (st.robot) d.robot = st.robot;
-      if (st.say) d.says.push(st.say);
-      if (st.reveal) d.reveal = true;
-      if (st.t === 'deal') {
-        d.mode = 'play'; d.streetIdx = 0;
-        d.bets = { 5: 50, 6: 100 }; d.stacks[5] -= 50; d.stacks[6] -= 100; d.pot = 150;
-      } else if (st.t === 'act') {
-        d.acting = st.p;
-        if (st.a === 'fold') { d.folded[st.p] = true; d.acts[st.p] = '弃牌'; }
-        else if (st.a === 'check') { d.acts[st.p] = '过牌'; }
-        else {
-          const prev = d.bets[st.p] || 0, delta = st.amt - prev;
-          d.pot += delta; d.stacks[st.p] -= delta; d.bets[st.p] = st.amt;
-          d.acts[st.p] = st.a === 'raise' ? '加注到 ' + this.fmt(st.amt) : st.a === 'bet' ? '下注 ' + this.fmt(st.amt) : st.a === 'allin' ? '全下' : '跟注 ' + this.fmt(st.amt);
-          if (i === upto) d.fx = { p: st.p, step: i };
-        }
-      } else if (st.t === 'street') {
-        d.board = d.board.concat(st.cards);
-        d.streetIdx = { flop: 1, turn: 2, river: 3 }[st.street];
-        d.bets = {}; d.acting = null;
-        if (d.duel && d.remain != null) d.remain = Math.max(0, d.remain - st.cards.length);
-      } else if (st.t === 'duel') {
-        d.duel = true; d.remain = st.remain; d.acting = null;
-      } else if (st.t === 'showdown') {
-        d.mode = 'showdown'; d.duel = false; d.winner = st.winner; d.streetIdx = 4; d.acting = null;
-      }
-      if (st.eq) d.history.push({ eq: st.eq, mark: st.mark || null });
-    }
-    return d;
+  // 每条总线消息聚合后回调一次: 数字类字段(彩池/胜率)平滑过渡到新值,
+  // 其余(牌面/解说/状态徽记等)立即刷新。
+  onLive(vm) {
+    this.live = vm;
+    const targets = { pot: vm.pot || 0 };
+    (vm.seats || []).forEach((s) => { targets[s.seat] = vm.equity[s.seat] || 0; });
+    this.tweenTo(targets);
+    this.forceUpdate();
   }
 
-  getD(k) { return k === 'pot' ? this.disp.pot : (this.disp.eq[k] || 0); }
-  setD(k, v) { if (k === 'pot') this.disp.pot = v; else this.disp.eq[k] = v; }
+  getD(k) { return this.disp[k] || 0; }
+  setD(k, v) { this.disp[k] = v; }
 
   tweenTo(targets) {
     const now = performance.now(), dur = this.rm ? 1 : 800;
@@ -471,41 +412,8 @@ class Component extends DCLogic {
     this._raf = requestAnimationFrame(stepFn);
   }
 
-  setStep(n) {
-    n = Math.max(0, Math.min(this.SCRIPT.length - 1, n));
-    const d = this.derive(n);
-    const t = { pot: d.pot };
-    const last = d.history[d.history.length - 1];
-    this.PLAYERS.forEach(p => { t[p.id] = last ? (last.eq[p.id] || 0) : 0; });
-    this.setState({ step: n });
-    this.tweenTo(t);
-  }
-
-  advanceAuto() {
-    if (!this.state.auto) return;
-    const n = this.state.step + 1;
-    if (n >= this.SCRIPT.length) { this.setState({ auto: false }); return; }
-    this.setStep(n);
-    const dur = (this.SCRIPT[n].dur || 1800) / (this.props.speed || 1);
-    this._t = setTimeout(() => this.advanceAuto(), dur);
-  }
-
-  play() {
-    clearTimeout(this._t);
-    this.setState({ auto: true, step: 0 }, () => {
-      this.setStep(0);
-      this._t = setTimeout(() => this.advanceAuto(), 900);
-    });
-  }
-
-  jump(n) {
-    clearTimeout(this._t);
-    this.setState({ auto: false });
-    this.setStep(n);
-  }
-
   cardVM(code, back) {
-    if (back) return { face: false, back: true };
+    if (back || !code || code === '??') return { face: false, back: true };
     const r = code[0] === 'T' ? '10' : code[0], s = code[1];
     const suit = { s: '♠', h: '♥', d: '♦', c: '♣' }[s];
     const color = this.state.four
@@ -514,39 +422,57 @@ class Component extends DCLogic {
     return { face: true, back: false, rank: r, suit, color };
   }
 
-  buildRiver(d) {
+  // 沿桌边把 n 个座位分两列排布: 左列座位 0..ceil(n/2)-1 从上到下, 右列剩余
+  // 座位从下到上——绕桌一圈座位号连续。n=6 时与原设计稿手摆坐标完全一致。
+  seatLayout(n) {
+    const nL = Math.ceil(n / 2), nR = n - nL;
+    const out = [];
+    for (let seat = 0; seat < n; seat++) {
+      const side = seat < nL ? 'L' : 'R';
+      const rows = side === 'L' ? nL : nR;
+      const col = side === 'L' ? seat : (rows - 1 - (seat - nL));
+      const t = rows > 1 ? col / (rows - 1) : 0.5;
+      const y = 20 + t * 53;
+      const bulge = 6 * Math.sin(t * Math.PI);
+      const x = side === 'L' ? (13 - bulge) : (87 + bulge);
+      out.push({ x: x.toFixed(1) + '%', y: y.toFixed(1) + '%', side });
+    }
+    return out;
+  }
+
+  buildRiver(history) {
     const W = 1872, H = 100;
     const el = React.createElement;
-    const hist = d.history;
-    if (hist.length < 2) {
+    const seats = (this.live && this.live.seats) || [];
+    if (history.length < 2 || !seats.length) {
       return el('div', { style: { position: 'absolute', left: 24, right: 24, top: 0, bottom: 8, display: 'flex', alignItems: 'center' } },
         el('div', { style: { height: 2, flex: 1, background: 'rgba(243,238,225,0.4)', animation: 'idlePulse 3s ease-in-out infinite' } }));
     }
-    const dispHist = hist.map((h, i) => {
-      if (i < hist.length - 1) return h.eq;
-      const m = {}; this.PLAYERS.forEach(p => m[p.id] = this.disp.eq[p.id] || 0); return m;
+    const dispHist = history.map((h, i) => {
+      if (i < history.length - 1) return h.eq;
+      const m = {}; seats.forEach((s) => m[s.seat] = this.disp[s.seat] || 0); return m;
     });
-    const N = dispHist.length, xs = i => i * (W / (N - 1));
-    const cols = dispHist.map(eq => {
+    const N = dispHist.length, xs = (i) => i * (W / (N - 1));
+    const cols = dispHist.map((eq) => {
       let c = 0; const m = {};
-      this.PLAYERS.forEach(p => { const v = eq[p.id] || 0; m[p.id] = [c, c + v]; c += v; });
+      seats.forEach((s) => { const v = eq[s.seat] || 0; m[s.seat] = [c, c + v]; c += v; });
       if (c <= 0) c = 1;
-      this.PLAYERS.forEach(p => { m[p.id] = [m[p.id][0] / c * 100, m[p.id][1] / c * 100]; });
+      seats.forEach((s) => { m[s.seat] = [m[s.seat][0] / c * 100, m[s.seat][1] / c * 100]; });
       return m;
     });
     const kids = [];
-    this.PLAYERS.forEach(p => {
-      const top = cols.map((m, i) => xs(i).toFixed(1) + ',' + (H - m[p.id][1] / 100 * H).toFixed(1));
-      const bot = cols.map((m, i) => xs(i).toFixed(1) + ',' + (H - m[p.id][0] / 100 * H).toFixed(1)).reverse();
-      kids.push(el('path', { key: 'b' + p.id, d: 'M' + top.join(' L ') + ' L ' + bot.join(' L ') + ' Z', fill: p.hue, fillOpacity: 0.55, stroke: 'rgba(8,30,23,0.6)', strokeWidth: 1 }));
+    seats.forEach((s) => {
+      const top = cols.map((m, i) => xs(i).toFixed(1) + ',' + (H - m[s.seat][1] / 100 * H).toFixed(1));
+      const bot = cols.map((m, i) => xs(i).toFixed(1) + ',' + (H - m[s.seat][0] / 100 * H).toFixed(1)).reverse();
+      kids.push(el('path', { key: 'b' + s.seat, d: 'M' + top.join(' L ') + ' L ' + bot.join(' L ') + ' Z', fill: this.HUES[s.seat % this.HUES.length], fillOpacity: 0.55, stroke: 'rgba(8,30,23,0.6)', strokeWidth: 1 }));
     });
-    hist.forEach((h, i) => {
+    history.forEach((h, i) => {
       if (!h.mark) return;
       const x = xs(i);
       kids.push(el('line', { key: 'l' + i, x1: x, y1: 0, x2: x, y2: H, stroke: 'rgba(243,238,225,0.5)', strokeWidth: 1 }));
       kids.push(el('text', { key: 't' + i, x: Math.min(x + 6, W - 60), y: 18, fill: 'rgba(243,238,225,0.7)', fontSize: 15, fontFamily: "'IBM Plex Sans','Noto Sans SC',sans-serif" }, h.mark));
     });
-    const frozen = d.mode === 'showdown';
+    const frozen = !!(this.live && this.live.complete);
     return el('svg', {
       width: '100%', height: H, viewBox: '0 0 ' + W + ' ' + H, preserveAspectRatio: 'none',
       style: { display: 'block', marginTop: 8, filter: frozen ? 'brightness(1.2)' : 'none', transition: 'filter 600ms' }
@@ -555,128 +481,112 @@ class Component extends DCLogic {
 
   renderVals() {
     const st = this.state;
-    const d = this.derive(st.step);
-    const last = d.history[d.history.length - 1];
-    const targetEq = {};
-    this.PLAYERS.forEach(p => targetEq[p.id] = last ? (last.eq[p.id] || 0) : 0);
-    const aliveIds = this.PLAYERS.map(p => p.id).filter(id => !d.folded[id] && targetEq[id] > 0);
-    let leaderId = null, best = -1;
-    aliveIds.forEach(id => { if (targetEq[id] > best) { best = targetEq[id]; leaderId = id; } });
-    if (d.mode === 'idle') leaderId = null;
+    const live = this.live || {};
+    const seats = live.seats || [];
+    const isIdle = live.handNo == null;
+    const layout = this.seatLayout(seats.length);
 
-    const mkPlayer = (p) => {
-      const folded = d.folded[p.id];
-      const acting = d.acting === p.id;
-      const eqv = this.disp.eq[p.id] || 0;
-      const dealt = d.streetIdx >= 0;
-      const showFace = st.god || (d.reveal && !folded);
-      const isLeader = p.id === leaderId;
+    let leaderSeat = null, best = -1;
+    if (!isIdle) {
+      seats.forEach((s) => {
+        if (!s.inHand) return;
+        const v = (live.equity || {})[s.seat] || 0;
+        if (v > best) { best = v; leaderSeat = s.seat; }
+      });
+    }
+
+    const mkPlayer = (s) => {
+      const folded = !s.inHand;
+      const acting = live.actor === s.seat;
+      const eqv = this.disp[s.seat] || 0;
+      const dealt = !isIdle;
+      const showFace = st.god && Array.isArray(s.hole);
       return {
-        name: p.name, style: p.style, est: p.n < 30, nText: 'n=' + p.n, hue: p.hue,
-        actionText: d.acts[p.id] || '',
+        name: s.name, style: this.STYLES[s.seat % this.STYLES.length] || '',
+        est: false, nText: '', hue: this.HUES[s.seat % this.HUES.length],
+        actionText: (live.acts || {})[s.seat] || '',
         noCards: !dealt,
-        cards: dealt ? p.hole.map(c => this.cardVM(c, !showFace)) : [],
-        eqText: d.mode === 'idle' ? '—' : Math.round(eqv) + '%',
-        eqColor: isLeader ? '#D9A441' : '#F3EEE1',
+        cards: dealt ? [0, 1].map((i) => this.cardVM(showFace && s.hole ? s.hole[i] : null, !showFace)) : [],
+        eqText: isIdle ? '—' : Math.round(eqv) + '%',
+        eqColor: s.seat === leaderSeat ? '#D9A441' : '#F3EEE1',
         eqW: Math.max(0, Math.min(100, eqv)) + '%',
-        barColor: isLeader ? '#D9A441' : 'rgba(243,238,225,0.45)',
+        barColor: s.seat === leaderSeat ? '#D9A441' : 'rgba(243,238,225,0.45)',
         opacity: folded ? 0.45 : 1, sat: folded ? 0.4 : 1,
         borderColor: acting ? 'rgba(217,164,65,0.9)' : 'rgba(243,238,225,0.08)',
-        vpip: p.vpip, pfr: p.pfr, af: p.af.toFixed(1),
-        vpipW: p.vpip + '%', pfrW: p.pfr + '%', afW: Math.min(100, p.af / 5 * 100) + '%',
-        hr: p.hr, dhr: 'Δ' + p.dhr, spark: this.sparks[p.id],
-        won: d.winner === p.id
+        won: live.winner === s.seat
       };
     };
 
-    const seats = this.PLAYERS.map(p => {
-      const sp = this.SEATPOS[p.id];
-      const acting = d.acting === p.id;
-      const folded = d.folded[p.id];
+    const players = seats.map(mkPlayer);
+    const half = Math.ceil(players.length / 2);
+    const leftPlayers = players.slice(0, half), rightPlayers = players.slice(half);
+
+    const seatVMs = seats.map((s, i) => {
+      const pos = layout[i] || { x: '50%', y: '50%', side: 'L' };
+      const acting = live.actor === s.seat, folded = !s.inHand;
       return {
-        x: sp.x, y: sp.y, hue: p.hue, initial: p.name[0],
-        stackText: this.fmt(d.stacks[p.id]),
-        dealer: p.id === 4 && d.mode !== 'idle',
+        x: pos.x, y: pos.y, hue: this.HUES[s.seat % this.HUES.length], initial: (s.name || '?')[0],
+        stackText: this.fmt(s.stack),
+        dealer: s.position === 'BTN' && !isIdle,
         anim: acting ? 'breatheGold 2s ease-in-out infinite' : 'none',
-        betText: d.bets[p.id] ? this.fmt(d.bets[p.id]) : '',
+        betText: s.bet ? this.fmt(s.bet) : '',
         opacity: folded ? 0.4 : 1, sat: folded ? 0.4 : 1,
-        connShow: acting, connTop: sp.y,
-        connLeft: sp.side === 'L' ? '0%' : sp.x,
-        connWidth: sp.side === 'L' ? sp.x : (100 - parseFloat(sp.x)) + '%'
+        connShow: acting, connTop: pos.y,
+        connLeft: pos.side === 'L' ? '0%' : pos.x,
+        connWidth: pos.side === 'L' ? pos.x : (100 - parseFloat(pos.x)) + '%'
       };
     });
 
-    const boardCards = d.board.map((c, i) => {
+    const boardCards = (live.board || []).map((c, i) => {
       const vm = this.cardVM(c, false);
-      vm.delay = (d.board.length === 3 ? i * 120 : 0) + 'ms';
+      vm.delay = ((live.board || []).length === 3 ? i * 120 : 0) + 'ms';
       return vm;
     });
 
     const streets = ['翻牌前', '翻牌圈', '转牌圈', '河牌圈', '摊牌'];
+    const streetIdx = { preflop: 0, flop: 1, turn: 2, river: 3, complete: 4 }[live.street];
+    const idx = streetIdx == null ? -1 : streetIdx;
     const dots = streets.map((s, i) => ({
-      bg: i === d.streetIdx ? '#D9A441' : '#F3EEE1',
-      op: i === d.streetIdx ? 1 : (i < d.streetIdx ? 0.9 : 0.3)
+      bg: i === idx ? '#D9A441' : '#F3EEE1',
+      op: i === idx ? 1 : (i < idx ? 0.9 : 0.3)
     }));
 
-    const potN = Math.round(this.disp.pot);
+    const potN = Math.round(this.disp.pot || 0);
     const chipCount = potN > 0 ? Math.min(12, Math.ceil(potN / 2400)) : 0;
     const chipCols = ['#D9A441', '#F3EEE1', '#C6403B'];
     const potChips = Array.from({ length: chipCount }, (_, i) => ({ bg: chipCols[i % 3] }));
 
-    let fxDx = '0px', fxDy = '0px', fxA = false, fxB = false;
-    if (d.fx && !this.rm) {
-      const sp = this.SEATPOS[d.fx.p];
-      fxDx = (sp.px[0] - 620) + 'px'; fxDy = (sp.px[1] - 470) + 'px';
-      if (d.fx.step % 2 === 0) fxA = true; else fxB = true;
-    }
-
-    const says = d.says;
-    const jumpDefs = [['待机', 0], ['发牌', 1], ['翻牌圈', 8], ['转牌圈', 13], ['全下对决', 19], ['摊牌', 21]];
-    const jumps = jumpDefs.map(([label, n], i) => {
-      const next = jumpDefs[i + 1] ? jumpDefs[i + 1][1] : Infinity;
-      const active = st.step >= n && st.step < next;
-      return { label, go: () => this.jump(n), bg: active ? 'rgba(217,164,65,0.18)' : 'transparent', fg: active ? '#D9A441' : 'rgba(243,238,225,0.7)' };
-    });
-
-    const p1 = this.PLAYERS[0], p2 = this.PLAYERS[1];
-    const aEq = Math.round(this.disp.eq[1] || 0), bEq = Math.round(this.disp.eq[2] || 0);
-
+    const says = (live.says && live.says.length) ? live.says : ['等待开局…'];
     const tog = (on) => ({ bg: on ? 'rgba(217,164,65,0.18)' : 'transparent', fg: on ? '#D9A441' : 'rgba(243,238,225,0.55)' });
+    const idleText = !live.connected ? '等待开局——连接中…'
+      : isIdle ? '等待开局——已连接实时数据源'
+      : '手已结束——等待下一手开局';
 
     return {
       scale: st.scale.toFixed(4),
-      behav: st.behav,
-      leftPlayers: [1, 2, 3].map(i => mkPlayer(this.PLAYERS[i - 1])),
-      rightPlayers: [4, 5, 6].map(i => mkPlayer(this.PLAYERS[i - 1])),
-      seats, boardCards, dots,
-      streetName: d.streetIdx < 0 ? '待机' : streets[d.streetIdx],
-      isIdle: d.mode === 'idle',
+      handText: live.handNo != null ? ('手牌 #' + live.handNo) : '手牌 —',
+      blindsText: live.blinds ? ('盲注 ' + live.blinds[0] + ' / ' + live.blinds[1]) : '盲注 —',
+      statsShow: false,   // VPIP/PFR/AF 需跨手累计, 引擎单手不产, 暂不上屏
+      behav: false,       // 心率走面部组另一条 ws, 不经本 hub, 暂不上屏
+      leftPlayers, rightPlayers,
+      seats: seatVMs, boardCards, dots,
+      streetName: live.streetZh || '待机',
+      isIdle, idleText,
       potShow: potN > 0,
       potText: this.fmt(potN),
-      potChips, fxA, fxB, fxDx, fxDy,
-      robotStatus: d.robot,
-      robotDot: d.mode === 'idle' ? 'rgba(243,238,225,0.35)' : '#D9A441',
+      potChips,
+      robotStatus: live.robot || '待机',
+      robotDot: isIdle ? 'rgba(243,238,225,0.35)' : '#D9A441',
       prevSay: says.length > 1 ? says[says.length - 2] : '',
       curSay: says[says.length - 1],
-      riverEl: this.buildRiver(d),
-      duelShow: d.duel,
-      duelAName: p1.name, duelBName: p2.name,
-      duelACards: p1.hole.map(c => this.cardVM(c, false)),
-      duelBCards: p2.hole.map(c => this.cardVM(c, false)),
-      duelAEq: aEq + '%', duelBEq: bEq + '%',
-      duelAColor: aEq >= bEq ? '#D9A441' : '#F3EEE1',
-      duelBColor: bEq > aEq ? '#D9A441' : '#F3EEE1',
-      duelRemain: d.remain == null ? '—' : String(d.remain),
-      play: () => this.play(),
-      nextStep: () => { clearTimeout(this._t); this.setState({ auto: false }); this.setStep(st.step + 1); },
-      jumps,
+      riverEl: this.buildRiver(live.history || []),
+      connStatus: live.connected ? ('● 已连接 ' + this.wsUrl()) : '○ 未连接, 重试中…',
+      connColor: live.connected ? 'rgba(243,238,225,0.55)' : '#D9A441',
       toggleGod: () => this.setState({ god: !st.god }),
       toggleFour: () => this.setState({ four: !st.four }),
-      toggleBehav: () => this.setState({ behav: !st.behav }),
       godLabel: st.god ? '上帝模式' : '公开模式',
       godBg: tog(st.god).bg, godFg: tog(st.god).fg,
-      fourBg: tog(st.four).bg, fourFg: tog(st.four).fg,
-      behavBg: tog(st.behav).bg, behavFg: tog(st.behav).fg
+      fourBg: tog(st.four).bg, fourFg: tog(st.four).fg
     };
   }
 }

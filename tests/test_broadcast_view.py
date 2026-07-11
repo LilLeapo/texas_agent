@@ -35,3 +35,11 @@ def test_rejects_path_traversal(view):
         urllib.request.urlopen(
             f"http://127.0.0.1:{port}/../broadcast_view.py", timeout=5)
     assert exc.value.code == 404
+
+
+def test_serves_index_with_query_string(view):
+    """index.html 里的 ?ws= 覆盖参数(见 live_adapter.js 用法)不能把根路由带偏。"""
+    port = view._srv.server_port
+    page = urllib.request.urlopen(
+        f"http://127.0.0.1:{port}/?ws=ws://127.0.0.1:8766", timeout=5).read()
+    assert "S1 转播大屏".encode() in page

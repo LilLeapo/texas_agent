@@ -10,6 +10,7 @@ gto_deviation 消息取代内置剧本、离线求解图表取代占位 Chen 公
 from __future__ import annotations
 
 import threading
+import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -29,7 +30,8 @@ class GtoBaselineView:
                 pass
 
             def do_GET(self):  # noqa: N802
-                name = "index.html" if self.path in ("/", "") else self.path.lstrip("/")
+                url_path = urllib.parse.urlsplit(self.path).path
+                name = "index.html" if url_path in ("/", "") else url_path.lstrip("/")
                 path = (_DIR / name).resolve()
                 if _DIR not in path.parents or not path.is_file():
                     self.send_response(404)

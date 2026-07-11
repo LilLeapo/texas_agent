@@ -2,14 +2,15 @@
 
 来自 Claude Design 项目"牌桌智脑设计规范"里的 S1 转播大屏.dc.html, 用其自带的
 dc-runtime(support.js, 单文件 React 运行时; 首次打开从 unpkg CDN 拉 React/
-ReactDOM)原样渲染 —— 页面内置的模拟牌局剧情(SCRIPT 数组 + 底部播放控制条)照旧
-播放。真实数据接入(总线事件驱动取代内置剧情)是后续工作, 与荷官屏(webview.py)
-是两块独立的屏, 端口也分开。
+ReactDOM)原样渲染。页面内嵌 live_adapter.js, 浏览器直连 ws hub(:8766)拿真实
+牌局数据(见 docs/前端对接-转播大屏.md); 断线自动重连, 连不上时维持待机画面。
+与荷官屏(webview.py)是两块独立的屏, 端口也分开, 本模块本身不订阅总线。
 """
 
 from __future__ import annotations
 
 import threading
+import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -29,7 +30,8 @@ class BroadcastView:
                 pass
 
             def do_GET(self):  # noqa: N802
-                name = "index.html" if self.path in ("/", "") else self.path.lstrip("/")
+                url_path = urllib.parse.urlsplit(self.path).path
+                name = "index.html" if url_path in ("/", "") else url_path.lstrip("/")
                 path = (_DIR / name).resolve()
                 if _DIR not in path.parents or not path.is_file():
                     self.send_response(404)
