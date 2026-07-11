@@ -41,8 +41,8 @@ def main() -> None:
             if cv2.waitKey(30) & 0xFF == ord("q"):
                 break
             continue
-        still = gate.feed(frame)
         warped = calib.warp(frame)
+        still = gate.feed(warped)
         for name in checker.zones:
             x, y, w, h = checker.zones[name]
             state = checker.tri_state(warped, name) if still else "none"
