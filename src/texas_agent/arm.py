@@ -292,6 +292,152 @@ class PantheraArm:
             pass
 
 
+class PantheraBatchArm:
+    """对接臂组"程序制"调度服务器 (arm_side/AGENT_LINUX_BATCH_INTEGRATION 文档)。
+
+    臂侧已把动作封装为整程序: OPENING=连发 8 张底牌, C1..C5=发单张公共牌
+    (取→亮→放全流程); 灵巧手握手在臂控电脑内部完成。Agent 职责只剩:
+    - 每阶段首个 DEAL 需求时提交程序/批次(POST 202, 轮询 status 至 idle 才能发下一条);
+    - 识别为纯旁路: 牌途经 Link2C 时 ShoeGod 持续读流认出, 不阻塞臂;
+    - 机器流程无实体烧牌 → skip_burn=True, 编排器自动逻辑烧牌。
+    任何失败返 False → 人肉降级; /api/stop 软停。
+    """
+
+    skip_burn = True
+
+    def __init__(self, base_url: str, token: str = "", bus=None,
+                 http_timeout: float = 10.0, idle_timeout: float = 420.0,
+                 poll_s: float = 0.5):
+        self.base_url = base_url.rstrip("/")
+        self.token = token
+        self.bus = bus
+        self.http_timeout = http_timeout
+        self.idle_timeout = idle_timeout
+        self.poll_s = poll_s
+        self._submitted: set[str] = set()   # 已提交的阶段(一手一进程, 无需复位)
+        self.alive = True
+        self._fails = 0
+
+    def _api(self, path: str, payload: dict | None = None) -> dict:
+        import json
+        import urllib.error
+        import urllib.request
+        headers = {"Content-Type": "application/json"}
+        if self.token:
+            headers["X-Panthera-Token"] = self.token
+        data = json.dumps(payload).encode() if payload is not None else None
+        req = urllib.request.Request(self.base_url + path, data=data,
+                                     headers=headers,
+                                     method="POST" if payload is not None else "GET")
+        try:
+            with urllib.request.urlopen(req, timeout=self.http_timeout) as r:
+                return json.load(r)
+        except urllib.error.HTTPError as e:
+            import json as _j
+            body = _j.loads(e.read() or b"{}")
+            raise RuntimeError(body.get("error", f"HTTP {e.code}"))
+
+    def health(self) -> bool:
+        try:
+            self._api("/api/status")
+            return True
+        except Exception:
+            return False
+
+    def _idle(self) -> bool:
+        st = self._api("/api/status").get("status", {})
+        return not st.get("running") and st.get("phase") == "idle"
+
+    def _wait_idle(self) -> None:
+        deadline = time.time() + self.idle_timeout
+        while time.time() < deadline:
+            if self._idle():
+                return
+            time.sleep(self.poll_s)
+        raise RuntimeError("臂长时间未回到 idle")
+
+    def _submit(self, key: str, label: str, post) -> None:
+        self._wait_idle()
+        try:
+            post()
+        except Exception:
+            # 幂等保护: 网络抖动可能在服务器已受理后才断 —— 盲目重试会让臂
+            # 把同一街发两遍牌。查一次状态: 臂在跑就视为提交成功。
+            time.sleep(self.poll_s)
+            try:
+                if not self._idle():
+                    self._submitted.add(key)
+                    if self.bus:
+                        self.bus.emit({"type": "agent_trace",
+                                       "text": f"🤖 臂指令提交遇网络抖动但已受理: {label}"})
+                    return
+            except Exception:
+                pass
+            raise
+        self._submitted.add(key)
+        if self.bus:
+            self.bus.emit({"type": "agent_trace", "text": f"🤖 臂指令已提交: {label}"})
+
+    def on_need(self, need) -> None:
+        if not self.alive or need.kind != "DEAL":
+            return
+        try:
+            if need.subkind == "hole" and "holes" not in self._submitted:
+                if not self._idle():
+                    # 臂侧已本地触发"发牌"(OPENING 在跑): 采用之, 不重复提交
+                    self._submitted.add("holes")
+                    if self.bus:
+                        self.bus.emit({"type": "agent_trace",
+                                       "text": "🤖 臂侧已本地启动发牌, Agent 采用并转入旁路识别"})
+                else:   # 发牌意图 → 专用端点(执行 B1..B8 后回 Reset 等待)
+                    self._submit("holes", "发牌(B1..B8)",
+                                 lambda: self._api("/api/deal/start", {}))
+            elif need.subkind in ("burn", "board"):
+                street = need.street
+                if street in self._submitted:
+                    return
+                programs = {"flop": ["C1", "C2", "C3"], "turn": ["C4"],
+                            "river": ["C5"]}.get(street)
+                if programs is None:
+                    return
+                if len(programs) == 1:
+                    self._submit(street, programs[0],
+                                 lambda: self._api(f"/api/programs/{programs[0]}/run", {}))
+                else:
+                    self._submit(street, "+".join(programs),
+                                 lambda: self._api("/api/batch/run",
+                                                   {"programs": programs}))
+        except Exception as exc:
+            print(f"  ⚠ 臂程序提交失败: {exc}")
+            if self.bus:
+                self.bus.emit({"type": "alert", "text": f"机械臂程序提交失败: {exc}"})
+            self._fails += 1
+            self.alive = self._fails < 2
+
+    # ---- 原语接口: 批次模式下臂自主执行, 这些只是"进行中"信号 ----
+
+    def pick_from_deck(self, present: bool = True) -> bool:
+        return self.alive and bool(self._submitted)
+
+    def present_to_camera(self) -> bool:
+        return self.alive and bool(self._submitted)
+
+    def deal_to(self, zone: str, face: str = "down") -> bool:
+        return True    # 放牌在程序内; 落位由顶视 watch 独立核验
+
+    def home(self) -> bool:
+        return True
+
+    def sweep(self) -> bool:
+        return False
+
+    def stop(self) -> None:
+        try:
+            self._api("/api/stop", {})
+        except Exception:
+            pass
+
+
 class ArmClient(_ArmActions):
     """模拟/总线路径: 同步指令接口, 内部走总线等回执(联调 SimArm 用)。"""
 

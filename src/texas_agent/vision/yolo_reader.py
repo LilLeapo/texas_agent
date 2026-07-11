@@ -76,6 +76,31 @@ class YoloCardReader:
                 return card
         return UNCERTAIN
 
+    def detect_all(self, img) -> dict[str, float]:
+        """全帧多检: 返回 {牌面: 最高置信}。公共牌横带用 —— 几张明牌并存,
+        按类别聚合(一张牌两角标 → 同类两框), 多尺度取并集补小目标域差。"""
+        found: dict[str, float] = {}
+        if img is None:
+            return found
+        for shrink in (1.0, 0.6):
+            try:
+                blob = self._letterbox(img, shrink)[:, :, ::-1].astype(np.float32) / 255.0
+                blob = blob.transpose(2, 0, 1)[None]
+                out = self._session().run(
+                    None, {self._session().get_inputs()[0].name: blob})[0]
+                pred = out[0].T if out.ndim == 3 else out.T
+                scores = pred[:, 4:]
+                best_per_box = scores.max(axis=1)
+                keep = best_per_box >= self.conf_threshold
+                if not keep.any():
+                    continue
+                for cid, cf in zip(scores[keep].argmax(axis=1), best_per_box[keep]):
+                    card = C.normalize(CLASSES[int(cid)])
+                    found[card] = max(found.get(card, 0.0), float(cf))
+            except Exception:
+                continue
+        return found
+
     def _read_at(self, img, shrink: float) -> str:
         try:
             self.last_conf = 0.0

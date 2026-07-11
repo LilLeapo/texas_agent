@@ -168,6 +168,7 @@ class Orchestrator:
         self.expect_timeout = expect_timeout
         self.vlm = vlm  # 认牌仲裁员(VlmCardReader), 可缺席; 兜底链居中, 死了跳过
         self.arm = arm  # ArmClient: 有臂则发牌动作由臂执行, 失败自动落回人肉提词
+        self._cur_street: str | None = None   # 街转换检测 → god.new_phase
 
     def _trace(self, text: str):
         self.bus.emit({"type": "agent_trace", "text": text})
@@ -189,8 +190,18 @@ class Orchestrator:
     # ---- DEAL: 提词 → 视觉核验 → 定牌面 → 录入 ----
 
     def _deal(self, need: Need):
+        if need.street != self._cur_street:
+            self._cur_street = need.street
+            if hasattr(self.god, "new_phase"):
+                # 流式读牌: 先划阶段界(丢上一街杂散窗)再提交臂程序, 序号不跨街错位
+                self.god.new_phase(need.street)
         if self.arm is not None and hasattr(self.arm, "on_need"):
-            self.arm.on_need(need)   # 宏观臂: 阶段首卡时提交整段轨迹
+            self.arm.on_need(need)   # 宏观臂: 阶段首卡时提交整段轨迹/程序
+        if need.subkind == "burn" and getattr(self.arm, "skip_burn", False):
+            # 程序制机器流程无实体烧牌: 逻辑烧牌自动记账, 不提词不核验
+            self._trace("机器流程无实体烧牌, 逻辑烧牌自动记录")
+            self.engine.record_deal(C.UNKNOWN, need.zones[0])
+            return
         # 先取牌面: 预排立即返回; 靴口模式在此完成"亮牌→VLM 认牌"交互(烧牌不亮)
         card = self.god.next_card(kind=need.subkind)
         if self.arm is not None and self.arm.alive:
@@ -199,6 +210,15 @@ class Orchestrator:
             if not ok:
                 self.bus.emit({"type": "alert",
                                "text": f"机械臂执行失败, 请荷官接管: {need.prompt_text()}"})
+        robot = self.arm is not None and getattr(self.arm, "alive", False)
+        if robot and need.subkind == "hole" and getattr(self.arm, "skip_burn", False):
+            # 批次程序臂: 8 张底牌一气呵成, 顶视区域框待校且逐张 watch 拖慢全程;
+            # 落位由臂程序保证, 牌面识别在过牌位旁路完成 → 顶视核验跳过
+            self._trace(f"臂程序发底牌 → {need.zones[0]} (顶视逐张核验跳过)")
+            self.engine.record_deal(card or C.UNKNOWN, need.zones[0],
+                                    source=getattr(self.god, "last_via", None))
+            analysis.emit_update(self.bus, self.engine)
+            return
         self._trace(f"提示荷官: {need.prompt_text()}; 等待 {'/'.join(need.zones)}")
         self.prompter.prompt(need.prompt_text())
         retried = False
@@ -207,12 +227,25 @@ class Orchestrator:
             if ev.timeout:
                 if not retried:
                     retried = True
-                    self.prompter.prompt(need.prompt_text(), level="again")
+                    if not robot:
+                        self.prompter.prompt(need.prompt_text(), level="again")
                     continue
+                if robot:
+                    # 机械臂发牌是确定性的: 落位没观测到多半是区域框偏差(物理待调),
+                    # 记录告警但照常推进, 监控永不卡死
+                    self._trace(f"落位未观测到(区域框偏差?), 信任机械臂: {need.zones[0]}")
+                    self.bus.emit({"type": "alert",
+                                   "text": f"落位未观测到: {need.zones[0]} (区域框待调)"})
+                    break
                 self.prompter.prompt(f"荷官超时未响应: {need.prompt_text()}", level="alert")
                 self.bus.emit({"type": "alert", "text": f"发牌超时: {need.prompt_text()}"})
                 continue
             if ev.wrong_zone:
+                if robot:
+                    # 臂不需要人来确认: 记录偏差, 按期望区域入账(逻辑座位不受影响)
+                    self._trace(f"落点偏差: 期望 {need.zones[0]}, 观测 {ev.wrong_zone}"
+                                f" (物理位置待调, 按期望记录)")
+                    break
                 if self.ops.confirm(f"看到牌落在 {ev.wrong_zone}, 期望是 {need.zones[0]}, 按 {ev.wrong_zone} 记录?"):
                     self.bus.emit({"type": "correction", "author": "ops",
                                    "field": "zone", "old": need.zones[0], "new": ev.wrong_zone})

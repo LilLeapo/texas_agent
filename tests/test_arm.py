@@ -238,6 +238,122 @@ def test_panthera_dead_server_falls_back():
     assert not dead.alive                        # 连续失败 → 离线 → 整手人肉
 
 
+def make_batch_stub(busy_s=0.15):
+    """程序制调度服务器桩: /api/status(轮询至 idle) /api/programs/<n>/run /api/batch/run。"""
+    import json
+    import threading
+    import time as _t
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    S = {"running": False, "phase": "idle", "submits": []}
+
+    def work():
+        _t.sleep(busy_s)
+        S.update(running=False, phase="idle")
+
+    class H(BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def _reply(self, obj, code=200):
+            data = json.dumps(obj).encode()
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(data)
+
+        def do_GET(self):
+            self._reply({"success": True,
+                         "status": {"running": S["running"], "phase": S["phase"]}})
+
+        def do_POST(self):
+            if S["running"]:
+                return self._reply({"success": False, "error": "busy"}, 409)
+            if self.path.startswith("/api/deal/start"):
+                S["submits"].append(["DEAL_START"])
+            elif self.path.startswith("/api/batch/run"):
+                body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                S["submits"].append(body["programs"])
+            elif self.path.startswith("/api/programs/"):
+                S["submits"].append([self.path.split("/")[3]])
+            elif self.path.startswith("/api/stop"):
+                return self._reply({"success": True})
+            S.update(running=True, phase="moving")
+            threading.Thread(target=work, daemon=True).start()
+            self._reply({"success": True}, 202)
+
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv.server_port, S
+
+
+def test_batch_arm_full_hand_programs(bus):
+    """程序制整手: OPENING + 翻/转/河三批次, 阶段不重复提交, 逻辑烧牌自动记账。"""
+    from texas_agent.arm import PantheraBatchArm
+    port, S = make_batch_stub()
+    arm = PantheraBatchArm(f"http://127.0.0.1:{port}", bus=bus, poll_s=0.03)
+    assert arm.skip_burn
+    engine = Engine(bus, n_players=4, stacks=(20000,) * 4, blinds=(50, 100),
+                    mode="preset")
+    orch = Orchestrator(bus, engine, vision=MockVision(),
+                        god=PresetGod.from_file("config/deck_order.txt"),
+                        inputs=ScriptedInputs(list(SCRIPT)), ops=ScriptedOps(),
+                        prompter=Prompter(bus), charts=GtoCharts("charts"),
+                        arm=arm)
+    snap = orch.run_hand()
+    assert snap["complete"]
+    assert S["submits"] == [["DEAL_START"], ["C1", "C2", "C3"], ["C4"], ["C5"]]
+    burns = [m for m in bus.msgs if m["type"] == "agent_trace"
+             and "逻辑烧牌" in m["text"]]
+    assert len(burns) == 3                      # 无实体烧牌, 引擎照常记账
+
+
+def test_batch_arm_adopts_local_opening(bus):
+    """臂侧本地输入'发牌'先触发 OPENING: Agent 采用, 不重复提交。"""
+    from texas_agent.arm import PantheraBatchArm
+    port, S = make_batch_stub()
+    S.update(running=True, phase="moving")      # 对面已本地启动
+    arm = PantheraBatchArm(f"http://127.0.0.1:{port}", bus=bus, poll_s=0.03)
+    arm.on_need(need("hole", "P1a"))
+    assert S["submits"] == []                   # 没有重复提交
+    assert "holes" in arm._submitted
+    assert any("本地启动" in m.get("text", "") for m in bus.msgs)
+
+
+def test_robot_mode_never_blocks_on_zone_deviation(bus, capsys):
+    """机器模式: 落错区/落位未观测都不弹窗不卡死, 记偏差照常推进。"""
+    from texas_agent.arm import PantheraBatchArm
+    from texas_agent.orchestrator import MockVision, WatchEvent
+    port, S = make_batch_stub()
+    arm = PantheraBatchArm(f"http://127.0.0.1:{port}", bus=bus, poll_s=0.03)
+    vision = MockVision(script=[WatchEvent(ok=False, wrong_zone="P3a"),
+                                WatchEvent(timeout=True), WatchEvent(timeout=True)])
+    engine = Engine(bus, n_players=4, stacks=(20000,) * 4, blinds=(50, 100),
+                    mode="preset")
+    orch = Orchestrator(bus, engine, vision=vision,
+                        god=PresetGod.from_file("config/deck_order.txt"),
+                        inputs=ScriptedInputs(list(SCRIPT)),
+                        ops=ScriptedOps(confirms=[]),   # 弹窗会 pop 空列表报错
+                        prompter=Prompter(bus), charts=GtoCharts("charts"),
+                        arm=arm)
+    snap = orch.run_hand()
+    assert snap["complete"]                       # 没被偏差卡死
+    traces = [m["text"] for m in bus.msgs if m["type"] == "agent_trace"]
+    assert any("落点偏差" in t for t in traces)
+    assert any("信任机械臂" in t for t in traces)
+
+
+def test_batch_arm_dead_server_degrades(bus):
+    from texas_agent.arm import PantheraBatchArm
+    dead = PantheraBatchArm("http://127.0.0.1:1", bus=bus,
+                            http_timeout=0.3, poll_s=0.02, idle_timeout=1)
+    assert dead.health() is False
+    dead.on_need(need("hole", "P1a"))
+    dead.on_need(need("hole", "P1a"))
+    assert not dead.alive
+    assert any(m["type"] == "alert" for m in bus.msgs)
+
+
 def test_command_roundtrip(bus):
     sim = SimArm(bus, delay_s=0.05)
     arm = ArmClient(bus, timeout_s=2)

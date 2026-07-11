@@ -40,8 +40,10 @@ def main() -> None:
                     help="机械臂执行(含靴口认牌); 失败自动人肉降级")
     ap.add_argument("--arm-url", help="臂控电脑 server, 如 http://<Windows_IP>:5100")
     ap.add_argument("--arm-token", default="", help="Panthera 服务器 api_token")
+    ap.add_argument("--arm-style", choices=("batch", "points"), default="batch",
+                    help="batch=程序制(OPENING/C1..C5, 现行文档); points=点位序列制(旧)")
     ap.add_argument("--arm-points", default="config/arm_points.yaml",
-                    help="语义点位映射(home/deck/camera/牌区 → A1/B3 引用)")
+                    help="points 模式的语义点位映射")
     ap.add_argument("--sim-arm", action="store_true",
                     help="挂模拟机械臂(联调用, 收指令延时回执)")
     ap.add_argument("--config", default="config/table.yaml")
@@ -114,17 +116,23 @@ def main() -> None:
     prompter = Prompter(bus, tts=cfg.get("prompter", {}).get("tts", False))
     arm = None
     if args.robot:
-        if args.arm_url:
+        if args.arm_url and args.arm_style == "batch":
+            from .arm import PantheraBatchArm
+            arm = PantheraBatchArm(args.arm_url, token=args.arm_token, bus=bus)
+            print(f"✓ 臂程序制服务器: {args.arm_url} "
+                  f"(探活: {'✓ 在线' if arm.health() else '✗ 不通, 将走人肉降级'}; "
+                  f"OPENING/C1..C5, 无实体烧牌)")
+        elif args.arm_url:
             from .arm import PantheraArm
             try:
                 points = yaml.safe_load(open(args.arm_points, encoding="utf-8")) or {}
             except FileNotFoundError:
                 sys.exit(f"✗ 缺 {args.arm_points}: 按 config/arm_points.example.yaml"
-                         " 填写点位映射(problem: 语义名 → A1/B3 引用)")
+                         " 填写点位映射(语义名 → A1/B3 引用)")
             arm = PantheraArm(args.arm_url, token=args.arm_token,
                               points=points.get("points", points),
                               n_players=cfg.get("players", 4), bus=bus)
-            print(f"✓ Panthera 协调服务器: {args.arm_url} "
+            print(f"✓ Panthera 点位序列服务器: {args.arm_url} "
                   f"(探活: {'✓ 在线' if arm.health() else '✗ 不通, 将走人肉降级'})")
         elif args.sim_arm:
             from .arm import ArmClient, SimArm
@@ -140,9 +148,36 @@ def main() -> None:
         if client is None:
             sys.exit("✗ --shoe 需要 VLM 认牌: 配置 llm.base_url")
         from .vision.shoe import ShoeGod
+        # 批次程序臂 → 流式旁路: 后台线程独占读牌相机, 飞行窗投票按序入队
+        stream = arm is not None and getattr(arm, "skip_burn", False)
+        hole_map = None
+        phys = (cfg.get("arm") or {}).get("hole_deal_order") or []
+        if stream and phys:
+            n = cfg.get("players", 4)
+            ez = [f"P{i + 1}a" for i in range(n)] + [f"P{i + 1}b" for i in range(n)]
+            if sorted(phys) == sorted(ez):
+                hole_map = [phys.index(z) for z in ez]
+                print(f"✓ 底牌臂序重映射: 臂 {'→'.join(phys)} → 引擎 {'/'.join(ez)}")
+            else:
+                print(f"⚠ arm.hole_deal_order 与 {n} 人桌不匹配, 不重映射(按引擎序直录)")
+        board_scan = None
+        if yolo is not None:
+            def board_scan():
+                ok, f = vision.top.read()   # 仅主线程(next_card 内)调用, 读相机安全
+                if ok:
+                    vision.last_frame = f
+                return yolo.detect_all(vision.board_band())
         god = ShoeGod(bus, prompter, ops, client, card_cam=vision.card_cam,
-                      fast_reader=yolo, arm=arm)
+                      fast_reader=yolo, arm=arm, stream=stream, hole_map=hole_map,
+                      board_scan=board_scan,
+                      phys_order=phys if hole_map else None)
         mode = "god"
+        if stream and god.stream is not None:
+            print("✓ 读牌旁路: 后台常驻线程(飞行窗投票), 主流程阻塞也不漏过牌")
+            if webview is not None:
+                webview.shoe = god.stream
+                print(f"✓ 牌靴实况: http://<本机IP>:{args.web_port}/shoe "
+                      f"(过牌识别调试用)")
         print(f"✓ 靴口模式: 亮牌认牌链 = "
               f"{'YOLO(毫秒)→' if yolo else ''}VLM→网页补录, 真实数据驱动")
     elif args.deck:
@@ -179,6 +214,9 @@ def main() -> None:
     except KeyboardInterrupt:
         print(f"\n⏹ 中断。会话日志: {bus.session_path}")
     finally:
+        if getattr(god, "stream", None) is not None:   # 先停读牌线程再放相机
+            god.stream.stop()
+            god.stream.join(timeout=2)
         vision.close()
         if webview:
             webview.close()

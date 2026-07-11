@@ -7,3 +7,7 @@ __pycache__/
 
 # macOS
 .DS_Store
+
+# 本地录屏/大文件素材, 不进仓库(用网盘/LFS 传)
+arm_side/*.mp4
+arm_side/*.mov

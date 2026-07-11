@@ -25,6 +25,12 @@ hub:
   pub_port: 8765
   sub_port: 8766
 
+# 机械臂(批次程序制) OPENING 的物理发牌顺序 —— 引擎按 P1a..P4a,P1b..P4b 记账,
+# live_cli 据此把"第几个飞过读牌位"重映射到引擎槽位, 座位归属才与实桌一致。
+# 臂侧改程序顺序后同步改这里; 删掉本段 = 不重映射(按引擎序直录)。
+arm:
+  hole_deal_order: [P3b, P3a, P2b, P2a, P1b, P1a, P4b, P4a]
+
 commentary:
   enabled: true
   tts: false              # LLM 解说走下方 llm: 段, 3.5s 超时自动降级模板

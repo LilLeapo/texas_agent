@@ -158,6 +158,17 @@ class LiveVision:
             return None
         return self.zone_image(zone, scale=scale, frame=frame)
 
+    def _mat_crop(self, box, scale, frame):
+        """毯面坐标框 → 从原始帧按逆单应裁正射图(保留全部光学分辨率)。"""
+        x, y, w, h = box
+        quad = np.float32([[x, y], [x + w, y], [x + w, y + h], [x, y + h]])
+        src = cv2.perspectiveTransform(quad.reshape(1, 4, 2).astype(np.float64),
+                                       np.linalg.inv(self.calib.H)).reshape(4, 2)
+        dst = np.float32([[0, 0], [w * scale, 0], [w * scale, h * scale], [0, h * scale]])
+        m = cv2.getPerspectiveTransform(src.astype(np.float32), dst)
+        return cv2.warpPerspective(self.calib._rotate(frame), m,
+                                   (w * scale, h * scale))
+
     def zone_image(self, zone: str, scale: int = 4, frame=None):
         """顶视帧按逆单应裁高清牌区(YOLO 公共牌核验用)。
 
@@ -169,16 +180,30 @@ class LiveVision:
             return None
         x, y, w, h = self.zones.zones[zone]
         pad = 8  # 牌可能没摆正在框中央: 裁大一圈, 交给 _align 精确抠出主牌
-        x, y, w, h = x - pad, y - pad, w + 2 * pad, h + 2 * pad
-        quad = np.float32([[x, y], [x + w, y], [x + w, y + h], [x, y + h]])
-        src = cv2.perspectiveTransform(quad.reshape(1, 4, 2).astype(np.float64),
-                                       np.linalg.inv(self.calib.H)).reshape(4, 2)
-        dst = np.float32([[0, 0], [w * scale, 0], [w * scale, h * scale], [0, h * scale]])
-        m = cv2.getPerspectiveTransform(src.astype(np.float32), dst)
-        patch = cv2.warpPerspective(self.calib._rotate(frame), m,
-                                    (w * scale, h * scale))
+        patch = self._mat_crop((x - pad, y - pad, w + 2 * pad, h + 2 * pad),
+                               scale, frame)
         card = self.matcher._align(patch)   # 抠出最大牌形, 剔掉混入的邻牌角
         return card if card is not None else patch
+
+    def board_band(self, pad: int = 60, scale: int = 2, frame=None):
+        """公共牌横带: C1..C5 联合外接框加大 padding 的正射裁图。
+
+        落点漂移免疫 —— 牌只要落在带内就能被全帧多检(detect_all)扫到,
+        不依赖任何单格像素框。frame 缺省 last_frame(线程安全);
+        主线程可先自行 top.read() 刷新再传入。"""
+        if frame is None:
+            frame = self.last_frame
+        if frame is None or self.calib.H is None:
+            return None
+        boxes = [self.zones.zones[z] for z in ("C1", "C2", "C3", "C4", "C5")
+                 if z in self.zones.zones]
+        if not boxes:
+            return None
+        x0 = min(b[0] for b in boxes) - pad
+        y0 = min(b[1] for b in boxes) - pad
+        x1 = max(b[0] + b[2] for b in boxes) + pad
+        y1 = max(b[1] + b[3] for b in boxes) + pad
+        return self._mat_crop((x0, y0, x1 - x0, y1 - y0), scale, frame)
 
     def still_frame(self, timeout: float = 3.0):
         """审计用顶视静止帧: 等手离开画面; 超时给最后一帧, 拍不到给 None。"""

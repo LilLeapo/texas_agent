@@ -1,8 +1,24 @@
-# 消息 Schema v0.2
+# 消息 Schema v0.3
 
 > D1-1 交付物。所有消息经唯一 ws_hub (/pub :8765, /sub :8766) 广播并逐行落 `sessions/*.jsonl`。
 > 变更需三方(Agent组/前端组/面部组)确认后升版本号。
 > v0.2 (纯新增, 向后兼容): deal 事件 detail 新增可选 `source` 字段; 新增 `audit_report` 消息。
+> v0.3 (纯新增, 向后兼容): 新增 `deal_preview` 消息(识别即推送, 先画牌不等记账)。
+
+## deal_preview (v0.3 新增, 识别即推送)
+
+机械臂模式下, 牌飞过读牌位被识别的**瞬间**发出 —— 不等引擎按序入账
+(底牌臂序重映射会把前几张攒到位后才涌出 game_event)。前端收到即可先把牌画到
+对应牌位; 随后的 `game_event(deal)` 才是权威记账, 两者不一致时(人工纠错等)
+**以 game_event 为准覆盖**。胶着待仲裁的窗不发预览。
+
+```json
+{"type":"deal_preview","zone":"P3b","card":"9c","via":"yolo","votes":"9c:31 9s:6"}
+{"type":"deal_preview","zone":"C4","card":"Jd","via":"yolo","votes":"Jd:55"}
+```
+
+zone: 底牌为**物理牌位**(如 P3b; 同座位 a/b 与权威记账可能互换, 按座位归并即可);
+公共牌为 C1..C5。
 
 ## 信封 (所有消息)
 
