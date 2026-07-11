@@ -26,8 +26,12 @@ _PAGE = """<!doctype html><meta charset=utf-8><title>荷官屏</title>
 <div style="display:flex;justify-content:space-between;padding:6px 12px;color:#888">
   <span id=street></span>
   <span id=toast style="color:#8fd18f"></span>
+  <label><input type=checkbox id=showlog>📜 日志</label>
   <label><input type=checkbox id=tts>🔊 朗读提词</label>
 </div>
+<div id=logbox style="display:none;position:fixed;right:1vw;top:9vh;width:46vw;height:62vh;
+  overflow-y:auto;background:rgba(8,18,10,0.93);border:1px solid #365;border-radius:10px;
+  padding:1.2vh;text-align:left;font:1.8vh/1.5 monospace;color:#9c9;white-space:pre-wrap;z-index:9"></div>
 <div id=prompt style="font-size:6.5vh;font-weight:bold;padding:1.5vh 4vw;min-height:8vh"></div>
 <div id=question style="display:none;background:#2a2418;margin:0 4vw 1vh;padding:1.5vh;border-radius:14px">
   <div id=qtext style="font-size:3.6vh;color:#ffd280;margin-bottom:1.2vh"></div>
@@ -38,6 +42,13 @@ _PAGE = """<!doctype html><meta charset=utf-8><title>荷官屏</title>
   <div id=qcard style="display:none">
     <input id=cardin placeholder="如 As / Th" style="font-size:3.2vh;width:26vw;text-align:center">
     <button class=big onclick="answer(document.getElementById('cardin').value)">提交</button>
+  </div>
+  <div id=qaction style="display:none">
+    <span id=qbtns></span>
+    <span id=qraise style="display:none">
+      <input id=raisein type=number placeholder="加注额" style="font-size:3.2vh;width:20vw;text-align:center">
+      <button class=big style="background:#a63" onclick="answer('raise:'+document.getElementById('raisein').value)">加注</button>
+    </span>
   </div>
 </div>
 <div id=commentary style="color:#8fd18f;font-size:2.8vh;min-height:3.5vh;padding:0 4vw"></div>
@@ -67,12 +78,36 @@ async function tick(){
     document.getElementById('street').textContent = s.street||'';
     const q = s.question, box = document.getElementById('question');
     if(q){
+      const isNew = q.seq !== qSeq;
       qSeq = q.seq;
       box.style.display = 'block';
       document.getElementById('qtext').textContent = q.text;
       document.getElementById('qconfirm').style.display = q.kind==='confirm'?'block':'none';
       document.getElementById('qcard').style.display = q.kind==='card'?'block':'none';
+      document.getElementById('qaction').style.display = q.kind==='action'?'block':'none';
+      if(q.kind==='action' && isNew){
+        const btns = document.getElementById('qbtns');
+        btns.innerHTML = '';
+        (q.options||[]).forEach(o=>{
+          const b = document.createElement('button');
+          b.className = 'big'; b.textContent = o.label;
+          b.onclick = ()=>answer(o.value);
+          btns.appendChild(b);
+        });
+        document.getElementById('qraise').style.display = q.raise?'inline':'none';
+        if(q.raise){ document.getElementById('raisein').placeholder = q.raise.min+'~'+q.raise.max; }
+      }
     } else { box.style.display = 'none'; }
+    const lb = document.getElementById('logbox');
+    lb.style.display = document.getElementById('showlog').checked ? 'block' : 'none';
+    if(lb.style.display === 'block' && s.log){
+      const atBottom = lb.scrollTop + lb.clientHeight >= lb.scrollHeight - 30;
+      if(lb.dataset.n !== String(s.log.length)){
+        lb.textContent = s.log.join('\n');
+        lb.dataset.n = String(s.log.length);
+        if(atBottom) lb.scrollTop = lb.scrollHeight;
+      }
+    }
     if(s.prompt.seq !== lastSeq){
       lastSeq = s.prompt.seq;
       if(document.getElementById('tts').checked && s.prompt.text){
@@ -102,7 +137,7 @@ class WebView:
     def __init__(self, bus, vision=None, port: int = 8080):
         self.vision = vision
         self.state = {"prompt": {"text": "等待开局…", "level": "normal", "seq": 0},
-                      "commentary": "", "street": "", "question": None}
+                      "commentary": "", "street": "", "question": None, "log": []}
         self._qseq = 0
         self._answer: tuple[int, str] | None = None
         self.restart_requested = False
@@ -159,20 +194,46 @@ class WebView:
 
     # ---- 总线 → 页面状态 ----
 
+    def _log(self, text: str) -> None:
+        line = f"[{time.strftime('%H:%M:%S')}] {text}"
+        self.state["log"] = (self.state["log"] + [line])[-80:]
+
     def feed(self, msg: dict) -> None:
         t = msg.get("type")
         if t == "dealer_prompt":
             self.state["prompt"] = {"text": msg["text"], "level": msg["level"],
                                     "seq": msg.get("seq", time.time())}
+            self._log(f"📢 {msg['text']}")
         elif t == "alert":
             self.state["prompt"] = {"text": "⚠ " + msg["text"], "level": "alert",
                                     "seq": msg.get("seq", time.time())}
+            self._log(f"⚠ {msg['text']}")
+        elif t == "agent_trace":
+            self._log(f"· {msg['text']}")
+        elif t == "audit_report":
+            self._log(f"👁 视觉审计[{msg['verdict']}] "
+                      f"{msg.get('note') or ' '.join(msg.get('board', []))}")
         elif t == "commentary":
             self.state["commentary"] = msg["text"]
+            self._log(f"🎙 {msg['text']}")
+        elif t == "input_request":
+            self._log(f"⏳ 等待 P{msg['seat'] + 1} 行动: {' / '.join(msg['legal'])}")
         elif t == "game_event":
             st = msg.get("state", {})
             self.state["street"] = (f"街[{st.get('street', '')}] "
                                     f"池[{st.get('pot', '')}]")
+            d = msg.get("detail", {})
+            if msg.get("event") == "deal":
+                # 荷官屏在桌边: 底牌值打码, 只显示去向与识别来源
+                card = "🂠" if d.get("deal_kind") != "board" else d.get("card")
+                src = f" [{d['source']}]" if d.get("source") else ""
+                self._log(f"🃏 {d.get('deal_kind')} {card} → {d.get('zone')}{src}")
+            elif msg.get("event") == "action":
+                self._log(f"🎲 P{d['seat'] + 1} {d['action']}"
+                          f"{' ' + str(d['amount']) if d.get('amount') else ''}"
+                          f" | 池 {st.get('pot')}")
+            elif msg.get("event") == "settlement":
+                self._log(f"💰 结算 {d.get('payoffs')}")
 
     # ---- 人工控制按钮 → LiveVision 标志位 ----
 
@@ -194,10 +255,12 @@ class WebView:
 
     # ---- 操作员问答(阻塞主循环, 这正是操作员环节的语义) ----
 
-    def ask(self, kind: str, text: str) -> str:
+    def ask(self, kind: str, text: str, options: list | None = None,
+            raise_range: dict | None = None) -> str:
         self._qseq += 1
         seq = self._qseq
-        self.state["question"] = {"kind": kind, "text": text, "seq": seq}
+        self.state["question"] = {"kind": kind, "text": text, "seq": seq,
+                                  "options": options, "raise": raise_range}
         self._answer = None
         try:
             while True:
@@ -250,3 +313,46 @@ class WebOps:
                 return C.normalize(raw)
             except ValueError:
                 text = f"'{raw}' 无效, 重输 (如 As/Th): {context}"
+
+
+class WebInputs:
+    """网页申报动作: 轮到谁行动, 荷官屏弹出该玩家的合法动作按钮。
+
+    这就是 Agent 衔接下注轮次的入口 —— 动作一申报, 引擎按规则裁定轮次结束,
+    next_required() 变成 DEAL 时编排器自动给机械臂提交下一街轨迹。
+    """
+
+    ACT_ZH = {"fold": "弃牌", "check": "过牌", "call": "跟注", "raise": "加注"}
+
+    def __init__(self, view: WebView):
+        self.view = view
+
+    def get(self, seat: int, legal: list[dict]) -> tuple[str, int | None]:
+        options = []
+        raise_range = None
+        for a in legal:
+            if a["action"] == "raise":
+                raise_range = {"min": a["min"], "max": a["max"]}
+                continue
+            label = self.ACT_ZH[a["action"]]
+            if a["action"] == "call":
+                label += f" {a['amount']}"
+            options.append({"label": label, "value": a["action"]})
+        text = f"轮到 P{seat + 1} 行动"
+        while True:
+            raw = self.view.ask("action", text, options=options,
+                                raise_range=raise_range)
+            if raw.startswith("raise:") and raise_range is not None:
+                try:
+                    amt = int(raw.split(":", 1)[1])
+                except ValueError:
+                    text = f"加注额无效, 轮到 P{seat + 1} 行动"
+                    continue
+                if raise_range["min"] <= amt <= raise_range["max"]:
+                    return "raise", amt
+                text = (f"加注额需在 {raise_range['min']}~{raise_range['max']},"
+                        f" 轮到 P{seat + 1}")
+                continue
+            if raw in {a["action"] for a in legal}:
+                return raw, None
+            text = f"无效动作, 轮到 P{seat + 1} 行动"

@@ -74,6 +74,41 @@ def test_restart_button_raises_from_ask(bus):
         wv.close()
 
 
+def test_webinputs_action_buttons(bus):
+    """网页申报: 合法动作按钮 → 引擎动作; 加注带金额校验 —— 轮次衔接入口。"""
+    import threading
+    from texas_agent.webview import WebInputs
+    wv = WebView(bus, vision=None, port=0)
+    port = wv._srv.server_port
+    inputs = WebInputs(wv)
+    legal = [{"action": "fold"}, {"action": "call", "amount": 100},
+             {"action": "raise", "min": 200, "max": 20000}]
+    try:
+        def answer_seq(values):
+            import urllib.request
+            for v in values:
+                while wv.state["question"] is None:
+                    pass
+                seq = wv.state["question"]["seq"]
+                urllib.request.urlopen(
+                    f"http://127.0.0.1:{port}/answer?seq={seq}&v={v}", timeout=5)
+                while wv.state["question"] is not None and \
+                        wv.state["question"]["seq"] == seq:
+                    pass
+
+        t = threading.Thread(target=answer_seq, args=(["call"],))
+        t.start()
+        assert inputs.get(2, legal) == ("call", None)
+        t.join()
+        # 加注: 先超范围被驳回, 再合法
+        t = threading.Thread(target=answer_seq, args=(["raise:50", "raise:300"],))
+        t.start()
+        assert inputs.get(2, legal) == ("raise", 300)
+        t.join()
+    finally:
+        wv.close()
+
+
 def test_webops_confirm_and_card(bus):
     import threading
     from texas_agent.webview import WebOps
