@@ -129,10 +129,12 @@ class DealAuditor:
     VLM 失联/看不清什么都不发。积压时只审计最新一次发牌, 过期帧作废。
     """
 
-    def __init__(self, bus, client, frame_source, timeout_s: float = 20.0):
+    def __init__(self, bus, client, frame_source, timeout_s: float = 20.0,
+                 board_reader=None):
         self.bus = bus
         self.client = client
         self.frame_source = frame_source  # callable() -> 顶视静止帧 | None
+        self.board_reader = board_reader  # callable(zone)->牌面: 顶视 YOLO 逐格核对
         self.timeout_s = timeout_s
         self._pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
         self._latest = 0
@@ -149,10 +151,22 @@ class DealAuditor:
         try:
             if ticket != self._latest:
                 return  # 已有更新的发牌, 本次作废
+            st = msg["state"]
+            # 第一层: 顶视 YOLO 逐格核对公共牌(毫秒级, 能点名哪张不对)
+            if self.board_reader is not None and st.get("board"):
+                for i, expect in enumerate(st["board"]):
+                    got = self.board_reader(f"C{i + 1}")
+                    if got not in (None, UNCERTAIN) and got != expect:
+                        note = f"顶视识别 C{i + 1}={got}, 记录是 {expect}"
+                        self.bus.emit({"type": "audit_report",
+                                       "street": st["street"], "board": st["board"],
+                                       "verdict": "mismatch", "note": note})
+                        self.bus.emit({"type": "alert", "text": f"发牌审计不符: {note}"})
+                        return   # 已确诊, 不再劳动 VLM
+            # 第二层: VLM 整帧对答案(底牌齐没齐等全局核验)
             frame = self.frame_source()
             if frame is None:
                 return
-            st = msg["state"]
             reply = self.client.ask(self._question(st), image_bgr=frame,
                                     timeout_s=self.timeout_s)
             verdict, note = self._parse(reply)

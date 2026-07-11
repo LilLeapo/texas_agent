@@ -181,6 +181,30 @@ def test_auditor_ignores_burn_and_other_msgs(bus):
     assert not auditor.client.prompts
 
 
+def test_auditor_yolo_board_check_first(bus):
+    """顶视 YOLO 逐格核对: 发现具体哪张不对, 不劳动 VLM。"""
+    client = FakeClient(["不该被问到"])
+    auditor = DealAuditor(bus, client, frame_source=lambda: object(),
+                          board_reader=lambda z: {"C1": "Jh", "C2": "9d"}.get(z))
+    auditor.feed(deal_msg(["Jh", "8h"]))       # 记录 C2=8h, 顶视读到 9d
+    auditor._pool.shutdown(wait=True)
+    reports = [m for m in bus.msgs if m["type"] == "audit_report"]
+    assert reports and reports[0]["verdict"] == "mismatch"
+    assert "C2=9d" in reports[0]["note"]
+    assert client.prompts == []                # VLM 没被调用
+    assert any(m["type"] == "alert" for m in bus.msgs)
+
+
+def test_auditor_yolo_pass_then_vlm(bus):
+    """YOLO 逐格全对(或不确定) → 继续 VLM 整帧核验。"""
+    auditor = DealAuditor(bus, FakeClient(["一致"]), frame_source=lambda: object(),
+                          board_reader=lambda z: {"C1": "Jh"}.get(z, "uncertain"))
+    auditor.feed(deal_msg(["Jh", "8h"]))       # C1 对, C2 不确定 → 不否决
+    auditor._pool.shutdown(wait=True)
+    reports = [m for m in bus.msgs if m["type"] == "audit_report"]
+    assert reports and reports[0]["verdict"] == "match"   # VLM 层给出 match
+
+
 def test_auditor_skips_stale_backlog(bus):
     """积压时只审计最新一次发牌: 旧工单在新 deal 到达后作废。"""
     auditor = DealAuditor(bus, FakeClient(["一致", "一致"]),

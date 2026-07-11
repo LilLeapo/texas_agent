@@ -154,7 +154,18 @@ class LiveVision:
             ok, frame = self.card_cam.read()
             return frame if ok else None
         ok, frame = self.top.read()
-        if not ok or self.calib.H is None:
+        if not ok:
+            return None
+        return self.zone_image(zone, scale=scale, frame=frame)
+
+    def zone_image(self, zone: str, scale: int = 4, frame=None):
+        """顶视帧按逆单应裁高清牌区(YOLO 公共牌核验用)。
+
+        frame 缺省取主循环最新帧(last_frame) —— 审计等后台线程禁止直接读相机
+        (cv2.VideoCapture 不允许并发读), 走这里是线程安全的。"""
+        if frame is None:
+            frame = self.last_frame
+        if frame is None or self.calib.H is None:
             return None
         x, y, w, h = self.zones.zones[zone]
         pad = 8  # 牌可能没摆正在框中央: 裁大一圈, 交给 _align 精确抠出主牌

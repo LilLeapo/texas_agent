@@ -88,7 +88,11 @@ def main() -> None:
     client = llm.from_config(args.config)
     vlm_reader = VlmCardReader(client, vision.card_image) if client else None
     if client:
-        auditor = DealAuditor(bus, client, vision.still_frame)
+        # 审计双层: 顶视 YOLO 逐格核对公共牌(毫秒) → VLM 整帧对答案
+        board_reader = ((lambda z: yolo.read_image(vision.zone_image(z)))
+                        if yolo else None)
+        auditor = DealAuditor(bus, client, vision.still_frame,
+                              board_reader=board_reader)
         bus.subscribe(auditor.feed)
     if cfg.get("commentary", {}).get("enabled", True):
         commentator = Commentator(bus, llm_fn=client.ask_text if client else None,

@@ -120,6 +120,20 @@ VLM 失联/看不清则本消息静默缺席(拔掉 Spark 整场无感)。`misma
 
 verdict ∈ `match | mismatch`; `note` 仅 mismatch 时非空。积压时只审计最新一次发牌。
 
+## arm_command / arm_ack (机械臂, v0.2 新增)
+
+Agent 指挥机械臂经总线走; 机械臂组实现订阅者: 收 command → 执行 → 回 ack(同 id)。
+超时(默认 15s)或 ok:false 时 Agent 自动降级人肉提词, 牌局不卡死。详见
+`docs/机械臂-Agent集成设计.md`; 联调可用内置 SimArm(`live_cli --robot --sim-arm`)。
+
+```json
+{"type":"arm_command","id":19,"action":"deal_to","zone":"P1a","face":"down"}
+{"type":"arm_ack","id":19,"ok":true}
+{"type":"arm_ack","id":20,"ok":false,"reason":"gripper miss"}
+```
+
+`action` ∈ `home | pick_from_deck | present_to_camera | deal_to | sweep`
+
 ## commentary (M6 解说)
 
 ```json
