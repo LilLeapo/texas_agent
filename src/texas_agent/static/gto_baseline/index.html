@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta charset="utf-8">
+<title>GTO 基线台 · 牌桌智脑</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600;700&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;family=Noto+Sans+SC:wght@400;500;700&amp;display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;padding:0;background:#081E17;overflow:hidden;}
+  a{color:#D9A441;text-decoration:none;} a:hover{color:#F3EEE1;}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+  @keyframes heroPop{0%{box-shadow:0 0 0 0 rgba(217,164,65,0);}100%{box-shadow:0 0 0 3px rgba(217,164,65,0.95);}}
+  @keyframes idlePulse{0%,100%{opacity:0.25;}50%{opacity:0.6;}}
+  @media (prefers-reduced-motion: reduce){ *{animation-duration:1ms !important;} }
+</style>
+</helmet>
+<div style="width:100vw;height:100vh;background:#081E17;display:flex;flex-direction:column;overflow:hidden;font-family:'IBM Plex Sans','Noto Sans SC',sans-serif;color:#F3EEE1;">
+  <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;min-height:0;">
+    <div data-screen-label="GTO 基线台" style="width:1920px;height:1080px;flex:none;background:#081E17;display:flex;flex-direction:column;transform:scale({{ scale }});transform-origin:center center;position:relative;">
+
+      <!-- 顶栏 -->
+      <div style="height:64px;flex:none;display:flex;align-items:center;padding:0 32px;gap:20px;border-bottom:1px solid rgba(243,238,225,0.08);">
+        <div style="font:600 28px 'IBM Plex Sans Condensed','Noto Sans SC',sans-serif;letter-spacing:0.02em;">GTO 基线 · 参考策略</div>
+        <div style="font-size:24px;color:rgba(243,238,225,0.7);">手牌 #43 · 盲注 50/100</div>
+        <div style="flex:1;"></div>
+        <div style="font-size:20px;color:rgba(243,238,225,0.45);">9 人桌 · 100bb · 离线转录图表</div>
+        <div style="display:flex;align-items:center;gap:10px;font:600 28px 'IBM Plex Sans Condensed','Noto Sans SC',sans-serif;"><span>♠</span><span>牌桌智脑</span></div>
+      </div>
+
+      <div style="flex:1;display:flex;gap:24px;padding:24px 32px;min-height:0;">
+
+        <!-- 左：矩阵舞台 -->
+        <div style="flex:none;width:1100px;display:flex;flex-direction:column;">
+          <sc-if value="{{ matrixShow }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;align-items:baseline;gap:16px;margin-bottom:14px;animation:fadeUp 240ms cubic-bezier(0.2,0,0,1) both;">
+              <div style="font:600 40px 'IBM Plex Sans Condensed','Noto Sans SC',sans-serif;">{{ nodeName }}</div>
+              <div style="font-size:24px;color:rgba(243,238,225,0.7);">{{ nodePlayer }}</div>
+              <div style="flex:1;"></div>
+              <div style="font-size:17px;padding:3px 14px;border-radius:999px;border:1px dashed rgba(243,238,225,0.35);color:rgba(243,238,225,0.7);background:repeating-linear-gradient(45deg,rgba(243,238,225,0.05) 0 8px,transparent 8px 16px);">{{ sourceLabel }}</div>
+            </div>
+            <!-- 汇总频率条 -->
+            <div style="margin-bottom:16px;animation:fadeUp 240ms cubic-bezier(0.2,0,0,1) 60ms both;">
+              <div style="display:flex;height:16px;border-radius:999px;overflow:hidden;border:1px solid rgba(243,238,225,0.12);">
+                <sc-for list="{{ summarySegs }}" as="sg" hint-placeholder-count="2">
+                  <div style="width:{{ sg.w }};background:{{ sg.bg }};"></div>
+                </sc-for>
+              </div>
+              <div style="display:flex;gap:24px;margin-top:8px;">
+                <sc-for list="{{ summaryLabels }}" as="sl" hint-placeholder-count="2">
+                  <div style="display:flex;align-items:center;gap:8px;font-size:20px;color:rgba(243,238,225,0.7);">
+                    <div style="width:14px;height:14px;border-radius:4px;background:{{ sl.bg }};border:1px solid rgba(243,238,225,0.15);"></div>
+                    <span>{{ sl.name }}</span>
+                    <span style="font-variant-numeric:tabular-nums;color:#F3EEE1;">{{ sl.pct }}</span>
+                  </div>
+                </sc-for>
+                <div style="flex:1;"></div>
+                <div style="font-size:16px;color:rgba(243,238,225,0.45);">格内填色 = 动作频率水平占比</div>
+              </div>
+            </div>
+            <!-- 13×13 矩阵 -->
+            <div style="flex:1;display:grid;grid-template-columns:repeat(13,1fr);grid-template-rows:repeat(13,1fr);gap:3px;min-height:0;animation:fadeUp 240ms cubic-bezier(0.2,0,0,1) 120ms both;">
+              <sc-for list="{{ cells }}" as="c" hint-placeholder-count="169">
+                <div style="position:relative;border-radius:5px;background:{{ c.bg }};border:1px solid rgba(243,238,225,0.06);display:flex;align-items:center;justify-content:center;overflow:hidden;outline:{{ c.outline }};outline-offset:-1px;z-index:{{ c.z }};animation:{{ c.anim }};">
+                  <span style="font:500 19px 'IBM Plex Sans Condensed',sans-serif;color:{{ c.fg }};letter-spacing:0.02em;">{{ c.label }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ emptyShow }}" hint-placeholder-val="{{ false }}">
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;border:1px dashed rgba(243,238,225,0.12);border-radius:12px;">
+              <div style="width:220px;height:2px;background:rgba(243,238,225,0.4);animation:idlePulse 3s ease-in-out infinite;"></div>
+              <div style="font-size:24px;color:rgba(243,238,225,0.45);text-align:center;line-height:1.7;">{{ emptyText }}</div>
+            </div>
+          </sc-if>
+        </div>
+
+        <!-- 右：节点信息 / 偏差对照 / 消息流 -->
+        <div style="flex:1;display:flex;flex-direction:column;gap:16px;min-width:0;">
+
+          <!-- 当前节点卡 -->
+          <div style="background:#14211B;border:1px solid rgba(243,238,225,0.08);border-radius:12px;padding:20px 24px;">
+            <div style="font-size:16px;letter-spacing:0.2em;color:rgba(243,238,225,0.45);margin-bottom:12px;">当前节点</div>
+            <sc-if value="{{ hintOn }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;align-items:center;gap:16px;">
+                <div style="display:flex;gap:6px;">
+                  <sc-for list="{{ heroCards }}" as="hc" hint-placeholder-count="2">
+                    <div style="width:58px;height:81px;background:#F3EEE1;border-radius:6px;position:relative;flex:none;">
+                      <div style="position:absolute;top:5px;left:6px;line-height:0.95;text-align:center;">
+                        <div style="font:700 21px 'IBM Plex Sans Condensed',sans-serif;color:{{ hc.color }};">{{ hc.rank }}</div>
+                        <div style="font-size:15px;color:{{ hc.color }};">{{ hc.suit }}</div>
+                      </div>
+                      <div style="position:absolute;right:5px;bottom:3px;font-size:26px;line-height:1;color:{{ hc.color }};">{{ hc.suit }}</div>
+                    </div>
+                  </sc-for>
+                </div>
+                <div>
+                  <div style="font:600 34px 'IBM Plex Sans Condensed','Noto Sans SC',sans-serif;">{{ heroHand }}</div>
+                  <div style="font-size:20px;color:rgba(243,238,225,0.7);margin-top:4px;">{{ nodePlayer }} · {{ nodeName }}</div>
+                  <div style="font-size:17px;color:rgba(243,238,225,0.45);margin-top:4px;">基线：{{ heroBaseline }}</div>
+                </div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ hintOff }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:22px;color:rgba(243,238,225,0.45);">—</div>
+            </sc-if>
+          </div>
+
+          <!-- 偏差对照卡 -->
+          <sc-if value="{{ devShow }}" hint-placeholder-val="{{ true }}">
+            <div style="background:#14211B;border:1px solid {{ devBorder }};border-radius:12px;padding:20px 24px;animation:fadeUp 240ms cubic-bezier(0.2,0,0,1) both;">
+              <div style="display:flex;align-items:center;margin-bottom:14px;">
+                <div style="font-size:16px;letter-spacing:0.2em;color:rgba(243,238,225,0.45);">偏差对照</div>
+                <div style="flex:1;"></div>
+                <div style="font-size:18px;padding:3px 14px;border-radius:999px;border:1px solid {{ devVerdictBorder }};color:{{ devVerdictColor }};">{{ devVerdict }}</div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:12px;">
+                <div>
+                  <div style="display:flex;justify-content:space-between;font-size:18px;color:rgba(243,238,225,0.7);margin-bottom:6px;"><span>基线 · {{ devHand }}</span><span>{{ devBaseText }}</span></div>
+                  <div style="display:flex;height:14px;border-radius:999px;overflow:hidden;border:1px solid rgba(243,238,225,0.12);">
+                    <sc-for list="{{ devSegs }}" as="dg" hint-placeholder-count="2">
+                      <div style="width:{{ dg.w }};background:{{ dg.bg }};"></div>
+                    </sc-for>
+                  </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:12px;">
+                  <span style="font-size:18px;color:rgba(243,238,225,0.7);">实际</span>
+                  <div style="font:600 24px 'IBM Plex Sans Condensed','Noto Sans SC',sans-serif;padding:4px 18px;border-radius:999px;background:{{ devActBg }};color:{{ devActFg }};">{{ devActual }}</div>
+                  <span style="font-size:17px;color:rgba(243,238,225,0.45);">{{ devNote }}</span>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+
+          <!-- 消息流 -->
+          <div style="flex:1;background:#14211B;border:1px solid rgba(243,238,225,0.08);border-radius:12px;padding:20px 24px;min-height:0;display:flex;flex-direction:column;">
+            <div style="font-size:16px;letter-spacing:0.2em;color:rgba(243,238,225,0.45);margin-bottom:14px;">消息流 · ws /sub</div>
+            <div style="flex:1;overflow:hidden;display:flex;flex-direction:column-reverse;gap:10px;font-family:'IBM Plex Mono','Noto Sans SC',monospace;">
+              <sc-for list="{{ feed }}" as="m" hint-placeholder-count="3">
+                <div style="display:flex;gap:12px;align-items:baseline;opacity:{{ m.op }};">
+                  <span style="font-size:15px;color:rgba(243,238,225,0.45);font-variant-numeric:tabular-nums;flex:none;">{{ m.time }}</span>
+                  <span style="font-size:14px;padding:1px 10px;border-radius:999px;border:1px solid {{ m.tagBorder }};color:{{ m.tagColor }};flex:none;">{{ m.tag }}</span>
+                  <span style="font-size:17px;color:rgba(243,238,225,0.9);line-height:1.5;">{{ m.text }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <div style="font-size:16px;color:rgba(243,238,225,0.35);line-height:1.6;">界面展示的是 GTO 基线（参考策略），剧情牌节点为离线求解结果；查不到的节点不显示。全部频率为示例数据。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 演示控制条（非转播画面） -->
+  <div style="height:64px;flex:none;background:#0B1512;border-top:1px solid rgba(243,238,225,0.08);display:flex;align-items:center;gap:8px;padding:0 20px;font-family:'IBM Plex Mono','Noto Sans SC',monospace;font-size:13px;color:rgba(243,238,225,0.7);">
+    <button onClick="{{ play }}" style="font-family:inherit;font-size:13px;background:#D9A441;color:#081E17;border:none;border-radius:999px;padding:7px 18px;cursor:pointer;font-weight:600;">▶ 播放剧本</button>
+    <button onClick="{{ nextStep }}" style="font-family:inherit;font-size:13px;background:transparent;color:rgba(243,238,225,0.85);border:1px solid rgba(243,238,225,0.25);border-radius:999px;padding:6px 16px;cursor:pointer;">下一步</button>
+    <div style="width:1px;height:24px;background:rgba(243,238,225,0.12);margin:0 8px;"></div>
+    <sc-for list="{{ jumps }}" as="j" hint-placeholder-count="6">
+      <button onClick="{{ j.go }}" style="font-family:inherit;font-size:13px;background:{{ j.bg }};color:{{ j.fg }};border:1px solid rgba(243,238,225,0.18);border-radius:999px;padding:6px 14px;cursor:pointer;">{{ j.label }}</button>
+    </sc-for>
+    <div style="flex:1;"></div>
+    <a href="{{ broadcastLink }}" style="font-size:13px;border:1px solid rgba(243,238,225,0.18);border-radius:999px;padding:6px 14px;">← S1 转播大屏</a>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;speed&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:1,&quot;min&quot;:0.5,&quot;max&quot;:2,&quot;step&quot;:0.25,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;播放&quot;,&quot;description&quot;:&quot;自动播放速度倍率&quot;},&quot;autoPlayOnLoad&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;description&quot;:&quot;载入后自动播放剧本&quot;,&quot;section&quot;:&quot;播放&quot;}}">
+class Component extends DCLogic {
+  state = { step: 1, auto: false, scale: 0.5 };
+
+  constructor(props) {
+    super(props);
+    this.RANKS = 'AKQJT98765432'.split('');
+    this.C = { raise: '#D9A441', call: 'rgba(243,238,225,0.78)', fold: '#14211B' };
+
+    // 剧本：gto_hint / gto_deviation 消息序列（示例数据）
+    this.SCRIPT = [
+      { t: 'idle' },
+      { t: 'hint', dur: 4200, node: '枪口 · RFI', pos: 'utg', player: '陈默（座位 4）', hero: '99',
+        heroCards: ['9s', '9h'], time: '20:41:07', say: 'gto_hint · 枪口位行动，hero 99' },
+      { t: 'dev', dur: 4200, hand: '99', actual: '加注到 300', match: true, time: '20:41:19',
+        say: 'gto_deviation · 陈默 加注到 300 — 符合基线', note: '基线为纯加注节点' },
+      { t: 'hint', dur: 4200, node: '按钮 · RFI', pos: 'btn', player: '老周（座位 6）', hero: 'A5s',
+        heroCards: ['Ah', '5h'], time: '20:41:44', say: 'gto_hint · 按钮位行动，hero A5s' },
+      { t: 'dev', dur: 4200, hand: 'A5s', actual: '跟注 100', match: false, time: '20:41:58',
+        say: 'gto_deviation · 老周 跟注 — 偏离基线（基线动作：加注 / 弃牌）', note: '跟注不在该节点基线动作内' },
+      { t: 'postflop', dur: 4000, time: '20:42:15', say: '进入翻牌圈 — 翻后不提供基线矩阵' }
+    ];
+    this._t = null;
+    this.ranges = { utg: this.buildRange(9, 8), btn: this.buildRange(5.5, 4.5) };
+  }
+
+  // Chen 公式近似 → 每格加注频率（示例数据，非权威数值）
+  chen(hi, lo, suited, pair) {
+    const val = r => ({ A: 10, K: 8, Q: 7, J: 6, T: 5 }[r] || parseInt(r) / 2);
+    let s = val(hi);
+    if (pair) return Math.max(s * 2, 5);
+    if (suited) s += 2;
+    const order = this.RANKS;
+    const gap = Math.abs(order.indexOf(hi) - order.indexOf(lo)) - 1;
+    s += gap === 0 ? 1 : gap === 1 ? 0 : gap === 2 ? -1 : gap === 3 ? -2 : -4;
+    if (gap <= 1 && order.indexOf(hi) > order.indexOf('Q')) s += 1;
+    return s;
+  }
+
+  buildRange(raiseAt, mixAt) {
+    const m = {};
+    let raiseW = 0, mixW = 0, totW = 0;
+    for (let i = 0; i < 13; i++) for (let j = 0; j < 13; j++) {
+      const hi = this.RANKS[Math.min(i, j)], lo = this.RANKS[Math.max(i, j)];
+      const pair = i === j, suited = j > i && !pair;
+      const key = pair ? hi + hi : hi + lo + (suited ? 's' : 'o');
+      const sc = this.chen(hi, lo, suited, pair);
+      // 示例数据修正：低同花 A（A2s–A5s）在宽范围节点作混合策略
+      const lowAs = suited && hi === 'A' && '5432'.includes(lo);
+      const raise = (lowAs && raiseAt < 9) ? 0.5 : sc >= raiseAt ? 1 : sc >= mixAt ? 0.5 : 0;
+      m[key] = { raise, fold: 1 - raise };
+      const w = pair ? 6 : suited ? 4 : 12;
+      totW += w;
+      raiseW += w * (raise === 1 ? 1 : 0);
+      mixW += w * (raise === 0.5 ? 0.5 : 0);
+    }
+    const rp = (raiseW + mixW) / totW * 100;
+    return { m, raisePct: rp, foldPct: 100 - rp };
+  }
+
+  fmtPct(v) { return v.toFixed(1) + '%'; }
+
+  componentDidMount() {
+    const onR = () => {
+      const w = window.innerWidth, h = window.innerHeight - 64;
+      this.setState({ scale: Math.max(0.1, Math.min(w / 1920, h / 1080)) });
+    };
+    this._onR = onR;
+    window.addEventListener('resize', onR);
+    onR();
+    if (this.props.autoPlayOnLoad ?? false) { this._t = setTimeout(() => this.play(), 800); }
+  }
+
+  componentWillUnmount() { window.removeEventListener('resize', this._onR); clearTimeout(this._t); }
+
+  setStep(n) { this.setState({ step: Math.max(0, Math.min(this.SCRIPT.length - 1, n)) }); }
+
+  advanceAuto() {
+    if (!this.state.auto) return;
+    const n = this.state.step + 1;
+    if (n >= this.SCRIPT.length) { this.setState({ auto: false }); return; }
+    this.setStep(n);
+    this._t = setTimeout(() => this.advanceAuto(), (this.SCRIPT[n].dur || 3000) / (this.props.speed || 1));
+  }
+
+  play() {
+    clearTimeout(this._t);
+    this.setState({ auto: true, step: 0 }, () => { this._t = setTimeout(() => this.advanceAuto(), 900); });
+  }
+
+  jump(n) { clearTimeout(this._t); this.setState({ auto: false }); this.setStep(n); }
+
+  cardVM(code) {
+    const r = code[0] === 'T' ? '10' : code[0], s = code[1];
+    return { rank: r, suit: { s: '♠', h: '♥', d: '♦', c: '♣' }[s], color: s === 'h' || s === 'd' ? '#C6403B' : '#1A1A18' };
+  }
+
+  baselineText(f) {
+    if (f.raise >= 0.999) return '纯加注';
+    if (f.raise <= 0.001) return '纯弃牌';
+    return '加注 ' + Math.round(f.raise * 100) + '% / 弃牌 ' + Math.round(f.fold * 100) + '%';
+  }
+
+  renderVals() {
+    const st = this.state;
+    // 当前生效的 hint / dev（沿剧本向前取最近一条）
+    let hint = null, dev = null, postflop = false;
+    for (let i = 1; i <= st.step; i++) {
+      const s = this.SCRIPT[i];
+      if (s.t === 'hint') { hint = s; dev = null; }
+      else if (s.t === 'dev') dev = s;
+      else if (s.t === 'postflop') { postflop = true; hint = null; dev = null; }
+    }
+    const range = hint ? this.ranges[hint.pos] : null;
+
+    const cells = [];
+    if (range) {
+      for (let i = 0; i < 13; i++) for (let j = 0; j < 13; j++) {
+        const hi = this.RANKS[Math.min(i, j)], lo = this.RANKS[Math.max(i, j)];
+        const pair = i === j, suited = j > i && !pair;
+        const key = pair ? hi + hi : hi + lo + (suited ? 's' : 'o');
+        const f = range.m[key];
+        const rp = Math.round(f.raise * 100);
+        const bg = rp >= 100 ? this.C.raise
+          : rp <= 0 ? this.C.fold
+          : 'linear-gradient(to right,' + this.C.raise + ' 0 ' + rp + '%,' + this.C.fold + ' ' + rp + '% 100%)';
+        const isHero = key === hint.hero;
+        cells.push({
+          label: key,
+          bg,
+          fg: rp >= 60 ? '#081E17' : rp > 0 ? '#F3EEE1' : 'rgba(243,238,225,0.45)',
+          outline: isHero ? '3px solid #D9A441' : 'none',
+          z: isHero ? 2 : 1,
+          anim: isHero ? 'heroPop 400ms cubic-bezier(0.2,0,0,1) 300ms both' : 'none'
+        });
+      }
+    }
+
+    const summarySegs = range ? [
+      { w: range.raisePct.toFixed(1) + '%', bg: this.C.raise },
+      { w: range.foldPct.toFixed(1) + '%', bg: this.C.fold }
+    ] : [];
+    const summaryLabels = range ? [
+      { name: '加注', pct: this.fmtPct(range.raisePct), bg: this.C.raise },
+      { name: '跟注', pct: '0.0%', bg: this.C.call },
+      { name: '弃牌', pct: this.fmtPct(range.foldPct), bg: this.C.fold }
+    ] : [];
+
+    // 偏差对照
+    let devVals = {};
+    if (dev) {
+      const srcRange = this.ranges[hint ? hint.pos : 'utg'];
+      const f = srcRange.m[dev.hand] || { raise: 0, fold: 1 };
+      devVals = {
+        devShow: true,
+        devHand: dev.hand,
+        devBaseText: this.baselineText(f),
+        devSegs: [
+          { w: Math.round(f.raise * 100) + '%', bg: this.C.raise },
+          { w: Math.round(f.fold * 100) + '%', bg: this.C.fold }
+        ],
+        devActual: dev.actual,
+        devNote: dev.note,
+        devVerdict: dev.match ? '符合基线' : '偏离基线',
+        devVerdictColor: dev.match ? 'rgba(243,238,225,0.9)' : '#D9A441',
+        devVerdictBorder: dev.match ? 'rgba(243,238,225,0.35)' : 'rgba(217,164,65,0.9)',
+        devBorder: dev.match ? 'rgba(243,238,225,0.08)' : 'rgba(217,164,65,0.5)',
+        devActBg: dev.match ? 'rgba(243,238,225,0.12)' : 'rgba(217,164,65,0.18)',
+        devActFg: dev.match ? '#F3EEE1' : '#D9A441'
+      };
+    } else {
+      devVals = { devShow: false };
+    }
+
+    // 消息流（新→旧，容器 column-reverse 显示为旧在上/新在下贴底）
+    const feed = [];
+    for (let i = 1; i <= st.step; i++) {
+      const s = this.SCRIPT[i];
+      if (!s.say) continue;
+      feed.push({
+        time: s.time || '', tag: s.t === 'hint' ? 'gto_hint' : s.t === 'dev' ? 'gto_deviation' : 'state',
+        tagBorder: s.t === 'dev' ? 'rgba(217,164,65,0.5)' : 'rgba(243,238,225,0.2)',
+        tagColor: s.t === 'dev' ? '#D9A441' : 'rgba(243,238,225,0.7)',
+        text: s.say, op: 1
+      });
+    }
+    feed.reverse();
+    feed.forEach((m, i) => { m.op = i === 0 ? 1 : Math.max(0.4, 1 - i * 0.18); });
+    if (!feed.length) feed.push({ time: '—', tag: 'state', tagBorder: 'rgba(243,238,225,0.2)', tagColor: 'rgba(243,238,225,0.7)', text: '已连接 ws :8766 /sub，等待消息', op: 0.7 });
+
+    const jumpDefs = [['待机', 0], ['实时提示 99', 1], ['符合基线', 2], ['提示 A5s', 3], ['偏离基线', 4], ['翻后隐藏', 5]];
+    const jumps = jumpDefs.map(([label, n]) => ({
+      label, go: () => this.jump(n),
+      bg: st.step === n ? 'rgba(217,164,65,0.18)' : 'transparent',
+      fg: st.step === n ? '#D9A441' : 'rgba(243,238,225,0.7)'
+    }));
+
+    return {
+      scale: st.scale.toFixed(4),
+      matrixShow: !!range,
+      emptyShow: !range,
+      emptyText: postflop ? '翻牌圈进行中——翻后不提供基线矩阵\n精确胜率与赔率见转播主屏' : '等待行动节点——翻牌前轮到行动时，基线矩阵将在 1 秒内上屏',
+      nodeName: hint ? hint.node : '',
+      nodePlayer: hint ? hint.player : '',
+      sourceLabel: '占位图表 · 示例数据',
+      summarySegs, summaryLabels, cells,
+      hintOn: !!hint, hintOff: !hint,
+      heroHand: hint ? hint.hero : '',
+      heroCards: hint ? hint.heroCards.map(c => this.cardVM(c)) : [],
+      heroBaseline: hint && range ? this.baselineText(range.m[hint.hero]) : '',
+      ...devVals,
+      feed, jumps,
+      broadcastLink: 'http://' + window.location.hostname + ':8081/',
+      play: () => this.play(),
+      nextStep: () => { clearTimeout(this._t); this.setState({ auto: false }); this.setStep(st.step + 1); }
+    };
+  }
+}
+</script>
+</body>
+</html>

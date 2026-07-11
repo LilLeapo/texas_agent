@@ -41,6 +41,8 @@ def main() -> None:
                     help="荷官网页屏端口(大字提词+俯视图), 0 关闭")
     ap.add_argument("--broadcast-port", type=int, default=8081,
                     help="转播大屏端口(观众席, 现仍是内置模拟剧情), 0 关闭")
+    ap.add_argument("--gto-port", type=int, default=8082,
+                    help="GTO 基线台端口(教练/操作员参考, 现仍是内置示例剧本), 0 关闭")
     ap.add_argument("--script", help="动作脚本(同 engine_cli), 免键盘: 'c c c k / k k k k'")
     args = ap.parse_args()
     if not args.deck and not args.public:
@@ -76,6 +78,13 @@ def main() -> None:
         broadcast = BroadcastView(port=args.broadcast_port)
         print(f"✓ 转播大屏: http://<本机IP>:{args.broadcast_port} "
               f"(观众席, 数据未接, 播的是内置模拟剧情)")
+
+    gto_view = None
+    if args.gto_port:
+        from .gto_baseline_view import GtoBaselineView
+        gto_view = GtoBaselineView(port=args.gto_port)
+        print(f"✓ GTO 基线台: http://<本机IP>:{args.gto_port} "
+              f"(教练/操作员参考, 数据未接, 播的是内置示例剧本)")
 
     client = llm.from_config(args.config)
     vlm_reader = VlmCardReader(client, vision.card_image) if client else None
@@ -116,6 +125,8 @@ def main() -> None:
             webview.close()
         if broadcast:
             broadcast.close()
+        if gto_view:
+            gto_view.close()
         bus.close()
 
 
