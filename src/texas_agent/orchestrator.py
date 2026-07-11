@@ -20,6 +20,10 @@ from .prompter import Prompter
 UNCERTAIN = "uncertain"
 
 
+class HandRestart(RuntimeError):
+    """操作员请求重开本手(网页按钮): 各阻塞点抛出, live_cli 捕获后整进程重启。"""
+
+
 @dataclass
 class WatchEvent:
     ok: bool = True
@@ -59,7 +63,7 @@ class PresetGod:
             tokens += line.split()
         return cls(tokens)
 
-    def next_card(self) -> str:
+    def next_card(self, kind: str | None = None) -> str:
         if self.i >= len(self.deck):
             raise RuntimeError("deck_order 耗尽")
         c = self.deck[self.i]
@@ -70,7 +74,7 @@ class PresetGod:
 class NoneGod:
     """公开模式: 无靴口信息。"""
 
-    def next_card(self) -> str | None:
+    def next_card(self, kind: str | None = None) -> str | None:
         return None
 
 
@@ -184,6 +188,8 @@ class Orchestrator:
     # ---- DEAL: 提词 → 视觉核验 → 定牌面 → 录入 ----
 
     def _deal(self, need: Need):
+        # 先取牌面: 预排立即返回; 靴口模式在此完成"亮牌→VLM 认牌"交互(烧牌不亮)
+        card = self.god.next_card(kind=need.subkind)
         self._trace(f"提示荷官: {need.prompt_text()}; 等待 {'/'.join(need.zones)}")
         self.prompter.prompt(need.prompt_text())
         retried = False
@@ -207,11 +213,10 @@ class Orchestrator:
                 continue
             break
 
-        card = self.god.next_card()                       # 靴口/预排; 公开模式 None
         if need.subkind == "burn":
             self.engine.record_deal(C.UNKNOWN, need.zones[0])   # 烧牌对信息集永远未知
             return
-        source = None
+        source = getattr(self.god, "last_via", None)   # 靴口: yolo/yolo+vlm/vlm/ops
         if card is None and need.face == "up":
             card = self.vision.read_card(need.zones[0])   # 公开模式读板面
         if card in (None, UNCERTAIN) and need.face == "up":

@@ -57,7 +57,13 @@ class VlmCardReader:
 
     def read_card(self, zone: str) -> str:
         try:
-            img = self.image_source(zone)
+            return self.read_image(self.image_source(zone))
+        except Exception:
+            return UNCERTAIN
+
+    def read_image(self, img) -> str:
+        """直接对给定图认牌 (供靴口等已持有图像的调用方)。"""
+        try:
             if img is None:
                 return UNCERTAIN
             reply = self.client.ask(CARD_PROMPT, image_bgr=img,

@@ -16,8 +16,9 @@ prompter:
   expect_timeout_s: 20    # 期望窗口, 超时轻声重提一次, 再超时升级 alert
 
 cameras:
-  top_index: 0            # 顶视 Ace Pro 2
-  card_index: 1           # 读牌位 (靴口 / 公共牌特写)
+  # 用 /dev/v4l/by-id 稳定路径, 重插/重启后设备号漂移也不受影响
+  top_index: /dev/v4l/by-id/usb-Arashi_Vision_Insta360_Ace_Pro_2_0001-video-index0
+  card_index: /dev/v4l/by-id/usb-Insta360_Insta360_Link_2C-video-index0
   template_dir: templates
 
 hub:

@@ -25,7 +25,7 @@ from .prompter import Prompter
 class ManualGod:
     """无预排、无靴口相机: 每张牌由荷官口头报牌、键盘录入(D1-3 前的过渡形态)。"""
 
-    def next_card(self) -> str:
+    def next_card(self, kind: str | None = None) -> str:
         while True:
             raw = input("  ⌨️ 荷官报牌 (如 As, 烧牌直接回车): ").strip()
             if not raw:

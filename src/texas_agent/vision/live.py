@@ -12,7 +12,7 @@ import time
 import cv2
 import numpy as np
 
-from ..orchestrator import WatchEvent
+from ..orchestrator import HandRestart, WatchEvent
 from .calib import TableCalibration
 from .matcher import UNCERTAIN, CardMatcher
 from .stability import StabilityGate
@@ -20,20 +20,28 @@ from .zones import ZoneChecker
 
 
 class LiveVision:
-    def __init__(self, zones_yaml: str, top_cam_index: int = 0,
-                 card_cam_index: int | None = None, template_dir: str = "templates"):
+    def __init__(self, zones_yaml: str, top_cam_index=0,
+                 card_cam_index=None, template_dir: str = "templates", yolo=None):
         self.calib = TableCalibration(zones_yaml)
         self.zones = ZoneChecker(zones_yaml)
         self.gate = StabilityGate()
         self.matcher = CardMatcher(template_dir)
+        self.yolo = yolo   # YoloCardReader: 读牌第一级(毫秒), 可缺席
         self.top = self._open(top_cam_index)
         self.card_cam = self._open(card_cam_index) if card_cam_index is not None else None
         self._baseline: dict[str, str] = {}
         self.last_frame = None  # 主循环最近一帧, 供网页荷官屏复用(勿并发读相机)
+        # 网页操控按钮置位, watch 循环消费
+        self.force_pass = False       # 强制通过当前核验
+        self.want_rebaseline = False  # 手动整理过桌面后重记各区域基线
+        self.want_recalib = False     # 相机被碰过后重新标定
+        self.abort_hand = False       # 重开本手(抛 HandRestart)
 
     @staticmethod
-    def _open(index: int):
-        cap = cv2.VideoCapture(index)
+    def _open(src):
+        """src: 设备号 int 或路径 str (推荐 /dev/v4l/by-id/*, 不随重枚举漂移)。"""
+        cap = (cv2.VideoCapture(src, cv2.CAP_V4L2) if isinstance(src, str)
+               else cv2.VideoCapture(src))
         cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
@@ -61,37 +69,65 @@ class LiveVision:
 
     def watch(self, zones: list[str], expect: str = "appear",
               timeout: float = 20) -> WatchEvent:
-        """等待期望区域出现存在性变化(none→back/face)。只在静止帧上核验。"""
-        if expect == "appear" and zones and \
-                all(self._baseline.get(z, "none") != "none" for z in zones):
-            return WatchEvent(ok=True)  # 已有牌叠着(烧牌堆): 增量不可见, 放行
+        """等待期望区域出现存在性变化。只在静止帧上核验, 且**每次核验开始时
+        以首个静止帧重记全部基线** —— 手臂悬停遮挡/挪牌造成的历史漂移一步清零,
+        不会把"遮挡后重现"误报成发错槽。"""
         deadline = time.time() + timeout
+        fresh = False
         while time.time() < deadline:
+            if self.abort_hand:
+                self.abort_hand = False
+                raise HandRestart
+            if self.force_pass:   # 网页"强制通过": 操作员说算过就算过
+                self.force_pass = False
+                return WatchEvent(ok=True)
             ok, frame = self.top.read()
             if not ok:
                 time.sleep(0.1)
                 continue
             self.last_frame = frame
-            if not self.gate.feed(frame):
-                continue  # 手在桌上晃动 → 不判定
+            if self.want_recalib:
+                if self.calib.calibrate(frame):
+                    self.want_recalib = False
+            if self.want_rebaseline:   # 网页按钮: 立即重记基线并重新等静止
+                self.want_rebaseline = False
+                fresh = False
             warped = self.calib.warp(frame)
+            if not self.gate.feed(warped):
+                continue  # 手在桌垫上方晃动 → 不判定 (门只看桌垫, 不看背景)
+            if not fresh:
+                self._baseline = {z: self.zones.tri_state(warped, z)
+                                  for z in self.zones.zones}
+                fresh = True
+                if expect == "appear" and zones and any(
+                        self._baseline.get(z, "none") != "none" for z in zones):
+                    # 目标区已有牌(烧牌堆二叠 / 荷官快手先放了): 视为已达成
+                    return WatchEvent(ok=True)
+                continue
             for z in zones:
                 state = self.zones.tri_state(warped, z)
                 if state != self._baseline.get(z, "none") and state != "none":
                     self._baseline[z] = state
                     return WatchEvent(ok=True)
-            # 期望区域没动静 → 查其它区域(荷官发错槽)
+            # 期望区域没动静 → 只有"开局时是空格、现在冒出牌"才算发错槽;
+            # 已占用格的任何波动(遮挡/挪动/翻面)一律不报警, 下次核验自动归零
             for z, base in self._baseline.items():
                 if z in zones or z in ("MUCK", "DECK"):
                     continue
                 state = self.zones.tri_state(warped, z)
-                if state != base and state != "none":
+                if base == "none" and state != "none":
                     self._baseline[z] = state
                     return WatchEvent(ok=False, wrong_zone=z)
         return WatchEvent(ok=False, timeout=True)
 
     def read_card(self, zone: str) -> str:
-        """公共牌位特写读牌; 无读牌相机时用顶视 warp 裁区域(精度受限)。"""
+        """读牌链第一二级: YOLO(毫秒, 姿态鲁棒) → NCC 模板(如已采集)。
+        仍不确定由编排器兜底链继续(VLM 仲裁 → 操作员)。"""
+        if self.yolo is not None:
+            img = self.card_image(zone)   # 高清裁图(读牌相机或顶视逆单应)
+            card = self.yolo.read_image(img)
+            if card != UNCERTAIN:
+                return card
         if self.card_cam is not None:
             ok, frame = self.card_cam.read()
             if not ok:
@@ -143,6 +179,6 @@ class LiveVision:
                 time.sleep(0.05)
                 continue
             frame = self.last_frame = f
-            if self.gate.feed(f):
+            if self.gate.feed(self.calib.warp(f) if self.calib.H is not None else f):
                 return f
         return frame
